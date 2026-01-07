@@ -148,7 +148,10 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
                     ? const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Color(0xFFE9D5FF), Color(0xFFDDD6FE)],
+                        colors: [
+                          Color(0xFF9D6FFF),
+                          Color(0xFF7C3AED),
+                        ],
                       )
                     : const LinearGradient(
                         begin: Alignment.topLeft,
@@ -163,7 +166,7 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
                 boxShadow: [
                   BoxShadow(
                     color: _selectedMode == 0
-                        ? primaryPurple.withOpacity(0.2)
+                        ? primaryPurple.withOpacity(0.3)
                         : Colors.grey.withOpacity(0.15),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
@@ -171,7 +174,7 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
                   ),
                   BoxShadow(
                     color: _selectedMode == 0
-                        ? primaryPurple.withOpacity(0.1)
+                        ? primaryPurple.withOpacity(0.15)
                         : Colors.grey.withOpacity(0.08),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
@@ -184,7 +187,7 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
                 children: [
                   Icon(
                     Icons.adjust,
-                    color: _selectedMode == 0 ? primaryPurple : textGrey,
+                    color: _selectedMode == 0 ? Colors.white : textGrey,
                     size: 18,
                   ),
                   const SizedBox(width: 6),
@@ -193,7 +196,7 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: _selectedMode == 0 ? primaryPurple : textDark,
+                      color: _selectedMode == 0 ? Colors.white : textDark,
                     ),
                   ),
                 ],
@@ -274,8 +277,14 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
 
   Widget _buildCircularDial() {
     return Center(
-      child: GestureDetector(
-        onTapDown: (TapDownDetails details) {
+      child: Opacity(
+        opacity: (_selectedMode == 0 || !_isToggleOn) ? 0.6 : 1.0,
+        child: IgnorePointer(
+          ignoring: _selectedMode == 0 || !_isToggleOn,
+          child: GestureDetector(
+        onTapDown: (_selectedMode == 0 || !_isToggleOn)
+            ? null
+            : (TapDownDetails details) {
           // Calculate which level was tapped
           final size = 240.0;
           final center = Offset(size / 2, size / 2);
@@ -350,6 +359,8 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
             ),
           ],
         ),
+          ),
+        ),
       ),
     );
   }
@@ -371,7 +382,11 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
 
   Widget _buildToggleSwitch() {
     return Center(
-      child: Container(
+      child: Opacity(
+        opacity: _selectedMode == 0 ? 0.6 : 1.0,
+        child: IgnorePointer(
+          ignoring: _selectedMode == 0,
+          child: Container(
         decoration: BoxDecoration(
           gradient: const LinearGradient(
             begin: Alignment.topLeft,
@@ -407,7 +422,9 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
             ),
             const SizedBox(width: 12),
             GestureDetector(
-              onTap: () => setState(() => _isToggleOn = !_isToggleOn),
+              onTap: _selectedMode == 0
+                  ? null
+                  : () => setState(() => _isToggleOn = !_isToggleOn),
               child: Container(
                 width: 50,
                 height: 28,
@@ -467,6 +484,8 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
               ),
             ),
           ],
+        ),
+          ),
         ),
       ),
     );

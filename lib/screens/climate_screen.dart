@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'venting_mode_screen.dart';
+import 'analytics_report_screen.dart';
+import 'humidity_mode_screen.dart';
 
 class ClimateScreen extends StatefulWidget {
   const ClimateScreen({super.key});
@@ -567,7 +569,12 @@ class _ClimateScreenState extends State<ClimateScreen> {
         const SizedBox(width: 12),
         Expanded(
           child: GestureDetector(
-            onTap: () => setState(() => _selectedMode = 1),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const HumidityModeScreen()),
+              );
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 14),
               decoration: BoxDecoration(
@@ -730,7 +737,12 @@ class _ClimateScreenState extends State<ClimateScreen> {
         ],
       ),
       child: ElevatedButton(
-        onPressed: () {},
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AnalyticsReportScreen()),
+          );
+        },
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,

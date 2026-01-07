@@ -21,6 +21,8 @@ dependencies:
 
   #local storage
   shared_preferences: ^2.0.15
+  pdf: ^3.11.0
+  printing: ^5.12.0
 
 dev_dependencies:
   flutter_test:
