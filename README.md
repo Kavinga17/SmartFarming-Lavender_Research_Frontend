@@ -1,2 +1,16 @@
-# SmartFarming-Lavender_Research_Frontend
-This project is a Smart Farming System designed to optimise lavender cultivation. It integrates IoT sensors, AI models, and smart devices to improve soil health, control climate, detect pests, and enhance essential oil yield.
+# lavender_ai_app
+
+A new Flutter project.
+
+## Getting Started
+
+This project is a starting point for a Flutter application.
+
+A few resources to get you started if this is your first Flutter project:
+
+- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.
