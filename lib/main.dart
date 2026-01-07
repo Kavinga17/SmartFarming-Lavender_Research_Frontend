@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/dashboard_screen.dart';
+import 'screens/login_screen.dart';
 
 void main() {
   runApp(const LavenderAIApp());
@@ -19,7 +19,7 @@ class LavenderAIApp extends StatelessWidget {
         appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
       ),
       debugShowCheckedModeBanner: false,
-      home: DashboardScreen(),
+      home: const LoginScreen(),
     );
   }
 }
