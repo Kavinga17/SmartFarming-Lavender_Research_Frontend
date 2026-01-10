@@ -37,7 +37,7 @@ The **Pest Detection Mobile Interface** is a cross-platform Flutter application 
 ├─────────────────────────────────── ─────────────────────────────────────┤
 │                                                                         │
 │  ┌─────────────────┐         ┌─────────────────┐                        │
-│  │  Flutter App    │◀──────▶│  Firebase       │                       │
+│  │  Flutter App    │◀──────▶│  Firebase       │                        │
 │  │  (Mobile)       │         │  Realtime DB    │                        │
 │  │                 │         │                 │                        │
 │  └────────┬────────┘         └────────┬────────┘                        │
