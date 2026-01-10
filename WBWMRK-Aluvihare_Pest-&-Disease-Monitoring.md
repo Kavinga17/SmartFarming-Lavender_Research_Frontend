@@ -975,7 +975,7 @@ try {
 
 For issues or questions about the mobile application:
 
-📧 **Email:** wbwmrkaluvihare@gmail.com  
+📧 **Email:** kavingaaluwihare2001@gmail.com  
 📱 **Developer:** WBWMRK Aluvihare  
 🎓 **Student ID:** IT22304506
 
