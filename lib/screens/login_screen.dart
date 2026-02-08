@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dashboard_screen.dart';
+import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,7 +16,19 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final LocalAuthentication _localAuth = LocalAuthentication();
   bool _obscurePassword = true;
+  bool _isLoading = false;
+  bool _biometricAvailable = false;
+  bool _biometricEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricAvailability();
+  }
 
   @override
   void dispose() {
@@ -20,12 +37,196 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
-    // Navigate to dashboard (no backend, just navigation)
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => DashboardScreen()),
+  Future<void> _checkBiometricAvailability() async {
+    try {
+      bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      bool isDeviceSupported = await _localAuth.isDeviceSupported();
+      
+      final prefs = await SharedPreferences.getInstance();
+      bool enabled = prefs.getBool('biometric_enabled') ?? false;
+      
+      setState(() {
+        _biometricAvailable = canCheckBiometrics && isDeviceSupported;
+        _biometricEnabled = enabled && _biometricAvailable;
+      });
+    } catch (e) {
+      setState(() {
+        _biometricAvailable = false;
+        _biometricEnabled = false;
+      });
+    }
+  }
+
+  void _showMessage(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red[400] : Colors.green[400],
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
     );
+  }
+
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      _showMessage('Please enter email and password', isError: true);
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      
+      // Save credentials for biometric login if enabled
+      final prefs = await SharedPreferences.getInstance();
+      bool biometricEnabled = prefs.getBool('biometric_enabled') ?? false;
+      if (biometricEnabled) {
+        await prefs.setString('biometric_email', email);
+        await prefs.setString('biometric_password', password);
+      }
+      
+      if (!mounted) return;
+      _showMessage('Login successful!');
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => DashboardScreen()),
+      );
+    } on FirebaseAuthException catch (e) {
+      String msg;
+      switch (e.code) {
+        case 'user-not-found':
+          msg = 'No account found with this email.';
+          break;
+        case 'wrong-password':
+          msg = 'Incorrect password.';
+          break;
+        case 'invalid-email':
+          msg = 'Invalid email address.';
+          break;
+        case 'user-disabled':
+          msg = 'This account has been disabled.';
+          break;
+        case 'invalid-credential':
+          msg = 'Invalid email or password.';
+          break;
+        default:
+          msg = e.message ?? 'Login failed. Please try again.';
+      }
+      _showMessage(msg, isError: true);
+    } catch (e) {
+      _showMessage('Login failed: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        setState(() => _isLoading = false);
+        return; // User cancelled
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await _auth.signInWithCredential(credential);
+      if (!mounted) return;
+      _showMessage('Signed in with Google!');
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => DashboardScreen()),
+      );
+    } catch (e) {
+      _showMessage('Google sign-in failed: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleForgotPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty) {
+      _showMessage('Please enter your email first', isError: true);
+      return;
+    }
+
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      _showMessage('Password reset email sent to $email');
+    } on FirebaseAuthException catch (e) {
+      String msg;
+      switch (e.code) {
+        case 'user-not-found':
+          msg = 'No account found with this email.';
+          break;
+        case 'invalid-email':
+          msg = 'Invalid email address.';
+          break;
+        default:
+          msg = e.message ?? 'Failed to send reset email.';
+      }
+      _showMessage(msg, isError: true);
+    } catch (e) {
+      _showMessage('Error: $e', isError: true);
+    }
+  }
+
+  Future<void> _handleBiometricLogin() async {
+    setState(() => _isLoading = true);
+    
+    try {
+      // Authenticate with biometrics
+      bool authenticated = await _localAuth.authenticate(
+        localizedReason: 'Please authenticate to login',
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: true,
+        ),
+      );
+
+      if (authenticated) {
+        // Retrieve saved credentials
+        final prefs = await SharedPreferences.getInstance();
+        final email = prefs.getString('biometric_email');
+        final password = prefs.getString('biometric_password');
+
+        if (email == null || password == null) {
+          _showMessage('No saved credentials. Please login with email/password first.', isError: true);
+          return;
+        }
+
+        // Sign in with Firebase
+        await _auth.signInWithEmailAndPassword(email: email, password: password);
+        if (!mounted) return;
+        _showMessage('Login successful!');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => DashboardScreen()),
+        );
+      } else {
+        _showMessage('Authentication failed', isError: true);
+      }
+    } on FirebaseAuthException catch (e) {
+      _showMessage('Login failed: ${e.message}', isError: true);
+    } catch (e) {
+      _showMessage('Biometric authentication failed', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -95,6 +296,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           // Login Button
                           _buildLoginButton(),
                           SizedBox(height: isSmallScreen ? 16 : 24),
+
+                          // Biometric Button (if enabled)
+                          if (_biometricEnabled) ...[
+                            _buildBiometricButton(),
+                            SizedBox(height: isSmallScreen ? 16 : 24),
+                          ],
 
                           // Or divider
                           _buildOrDivider(),
@@ -284,9 +491,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Align(
       alignment: Alignment.centerRight,
       child: TextButton(
-        onPressed: () {
-          // Handle forgot password
-        },
+        onPressed: _handleForgotPassword,
         child: Text(
           'Forgot Password',
           style: TextStyle(
@@ -329,7 +534,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ],
       ),
       child: ElevatedButton(
-        onPressed: _handleLogin,
+        onPressed: _isLoading ? null : _handleLogin,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.transparent,
           foregroundColor: Colors.white,
@@ -339,12 +544,74 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           elevation: 0,
         ),
-        child: const Text(
-          'Login',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
+        child: _isLoading
+            ? const SizedBox(
+                height: 24,
+                width: 24,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.5,
+                ),
+              )
+            : const Text(
+                'Login',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+      ),
+    );
+  }
+
+  Widget _buildBiometricButton() {
+    return Container(
+      width: double.infinity,
+      height: 55,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.teal[300]!,
+            Colors.teal[400]!,
+            Colors.teal[500]!,
+          ],
+        ),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.teal.withOpacity(0.4),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+            spreadRadius: 0,
           ),
+        ],
+      ),
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _handleBiometricLogin,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          shadowColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          elevation: 0,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.fingerprint, size: 28),
+            const SizedBox(width: 12),
+            const Text(
+              'Login with Biometric',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -375,7 +642,7 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         // Google
         _socialLoginButton(
-          onPressed: () {},
+          onPressed: _isLoading ? () {} : _handleGoogleSignIn,
           child: Container(
             width: 24,
             height: 24,
@@ -428,7 +695,11 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         GestureDetector(
           onTap: () {
-            // Handle sign up
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const RegisterScreen()),
+            );
           },
           child: Text(
             'Sign up',

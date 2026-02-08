@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "504327412275",
+    "project_id": "research-auth-app-88361",
+    "storage_bucket": "research-auth-app-88361.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:504327412275:android:e8905e30d28e3d6579e146",
+        "android_client_info": {
+          "package_name": "com.example.lavender_ai_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbyVIjq0foF0s74g_RlZPntGfT9E1eNW8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
