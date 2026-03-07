@@ -7,7 +7,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 /// Firebase Service - Centralized Firebase functionality
-/// 
+///
 /// This service provides easy access to all Firebase features:
 /// - Authentication (Email/Password, Google Sign-In)
 /// - Cloud Firestore (Database)
@@ -58,7 +58,10 @@ class FirebaseService {
   }
 
   /// Register with email and password
-  Future<UserCredential?> registerWithEmail(String email, String password) async {
+  Future<UserCredential?> registerWithEmail(
+    String email,
+    String password,
+  ) async {
     try {
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email,
@@ -76,13 +79,14 @@ class FirebaseService {
     try {
       // Trigger the authentication flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      
+
       if (googleUser == null) {
         throw Exception('Google sign-in was cancelled');
       }
 
       // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
 
       // Create a new credential
       final credential = GoogleAuthProvider.credential(
@@ -179,7 +183,9 @@ class FirebaseService {
   }
 
   /// Get a document
-  Future<DocumentSnapshot<Map<String, dynamic>>> getDocument(String path) async {
+  Future<DocumentSnapshot<Map<String, dynamic>>> getDocument(
+    String path,
+  ) async {
     return await _firestore.doc(path).get();
   }
 
@@ -243,9 +249,15 @@ class FirebaseService {
   }
 
   /// Upload bytes to Firebase Storage
-  Future<String> uploadBytes(String path, List<int> bytes, {String? contentType}) async {
+  Future<String> uploadBytes(
+    String path,
+    List<int> bytes, {
+    String? contentType,
+  }) async {
     final ref = _storage.ref().child(path);
-    final metadata = contentType != null ? SettableMetadata(contentType: contentType) : null;
+    final metadata = contentType != null
+        ? SettableMetadata(contentType: contentType)
+        : null;
     final uploadTask = ref.putData(Uint8List.fromList(bytes), metadata);
     final snapshot = await uploadTask;
     return await snapshot.ref.getDownloadURL();
@@ -283,7 +295,10 @@ class FirebaseService {
   }
 
   /// Log analytics event (internal helper)
-  Future<void> _logAnalyticsEvent(String name, Map<String, dynamic> params) async {
+  Future<void> _logAnalyticsEvent(
+    String name,
+    Map<String, dynamic> params,
+  ) async {
     await _analytics.logEvent(
       name: name,
       parameters: params.map((key, value) => MapEntry(key, value.toString())),
@@ -309,7 +324,8 @@ class FirebaseService {
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
       print('User granted FCM permission');
-    } else if (settings.authorizationStatus == AuthorizationStatus.provisional) {
+    } else if (settings.authorizationStatus ==
+        AuthorizationStatus.provisional) {
       print('User granted provisional FCM permission');
     } else {
       print('User declined FCM permission');
@@ -335,7 +351,8 @@ class FirebaseService {
   Stream<RemoteMessage> get onMessage => FirebaseMessaging.onMessage;
 
   /// Handle message opened app
-  Stream<RemoteMessage> get onMessageOpenedApp => FirebaseMessaging.onMessageOpenedApp;
+  Stream<RemoteMessage> get onMessageOpenedApp =>
+      FirebaseMessaging.onMessageOpenedApp;
 
   // ============================================================================
   // USER DATA METHODS (FIRESTORE)
