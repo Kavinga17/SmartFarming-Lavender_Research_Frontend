@@ -27,56 +27,79 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   static const Color textColor = Color(0xFF2C3E50);
   static const Color lightTextColor = Color(0xFF95A5A6);
 
+  // Safe getter for Map values - FIXED
+  Map<String, dynamic> _safeGetMap(dynamic value) {
+    if (value is Map) {
+      // Force cast to Map<String, dynamic>
+      return Map<String, dynamic>.from(value);
+    }
+    return {};
+  }
+
+  // Safe getter for List values
+  List<dynamic> _safeGetList(dynamic value) {
+    if (value is List) return value;
+    return [];
+  }
+
   // Helper to safely get data from API response
   dynamic _getFromResult(String key, [dynamic defaultValue]) {
     try {
-      // Navigate through nested structure
       final parts = key.split('.');
-      dynamic current = widget.analysisResult;
+
+      // Cast the root to Map<String, dynamic> first
+      Map<String, dynamic> current = Map<String, dynamic>.from(
+        widget.analysisResult,
+      );
 
       for (final part in parts) {
-        if (current is Map && current.containsKey(part)) {
-          current = current[part];
+        if (current.containsKey(part)) {
+          final value = current[part];
+          if (value is Map) {
+            // Cast nested maps as we go
+            current = Map<String, dynamic>.from(value);
+          } else {
+            return value;
+          }
         } else {
           return defaultValue;
         }
       }
       return current;
     } catch (e) {
+      print('Error parsing key $key: $e');
       return defaultValue;
     }
   }
 
-  // Get dashboard summary data
+  // Get dashboard summary data - FIXED
   Map<String, dynamic> get _dashboardSummary {
-    return _getFromResult('dashboardSummary', {});
+    return _safeGetMap(_getFromResult('dashboardSummary', {}));
   }
 
-  // Get cross-verification data
+  // Get cross-verification data - FIXED
   Map<String, dynamic> get _crossVerification {
-    return _getFromResult('crossVerification', {});
+    return _safeGetMap(_getFromResult('crossVerification', {}));
   }
 
-  // Get intelligent diagnosis
+  // Get intelligent diagnosis - FIXED
   Map<String, dynamic> get _intelligentDiagnosis {
-    return _getFromResult('intelligentDiagnosis', {});
+    return _safeGetMap(_getFromResult('intelligentDiagnosis', {}));
   }
 
-  // Get visual assessment
+  // Get visual assessment - FIXED
   Map<String, dynamic> get _visualAssessment {
-    return _getFromResult('visualAssessment', {});
+    return _safeGetMap(_getFromResult('visualAssessment', {}));
   }
 
-  // Get sensor readings
+  // Get sensor readings - FIXED
   Map<String, dynamic> get _sensorReadings {
-    return _getFromResult('sensorReadings', {});
+    return _safeGetMap(_getFromResult('sensorReadings', {}));
   }
 
   // Get recommendations
   List<dynamic> get _recommendations {
-    final recs = _getFromResult('recommendations.priorityOrder', []);
-    if (recs is List) return recs;
-    return [];
+    return _safeGetList(_getFromResult('recommendations.priorityOrder', []));
   }
 
   // Parse issues from backend response
@@ -84,45 +107,46 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
     final issues = <Map<String, dynamic>>[];
 
     // Check cross-verification conflicts
-    final conflicts = _crossVerification['conflicts'] ?? [];
-    if (conflicts is List) {
-      for (final conflict in conflicts) {
-        if (conflict is Map) {
-          issues.add({
-            'title': 'DATA CONFLICT',
-            'severity': 'MEDIUM',
-            'description':
-                conflict['message'] ??
-                'Conflicting data between CNN and sensors',
-            'detectedBy': 'Cross-verification',
-          });
-        }
+    final conflicts = _safeGetList(_crossVerification['conflicts']);
+    for (final conflict in conflicts) {
+      if (conflict is Map) {
+        final conflictMap = Map<String, dynamic>.from(conflict);
+        issues.add({
+          'title': 'DATA CONFLICT',
+          'severity': 'MEDIUM',
+          'description':
+              conflictMap['message']?.toString() ??
+              'Conflicting data between CNN and sensors',
+          'detectedBy': 'Cross-verification',
+        });
       }
     }
 
     // Check sensor issues
-    final sensorIssues = _sensorReadings['assessment']?['issues'] ?? [];
-    if (sensorIssues is List) {
-      for (final issue in sensorIssues) {
-        if (issue is Map) {
-          final sensor = issue['sensor']?.toString() ?? 'Unknown';
-          final value = issue['value']?.toString() ?? 'N/A';
-          final optimalRange = issue['optimalRange']?.toString() ?? 'N/A';
+    final assessment = _safeGetMap(_sensorReadings['assessment']);
+    final sensorIssues = _safeGetList(assessment['issues']);
+    for (final issue in sensorIssues) {
+      if (issue is Map) {
+        final issueMap = Map<String, dynamic>.from(issue);
+        final sensor = issueMap['sensor']?.toString() ?? 'Unknown';
+        final value = issueMap['value']?.toString() ?? 'N/A';
+        final optimalRange = issueMap['optimalRange']?.toString() ?? 'N/A';
 
-          issues.add({
-            'title': '${sensor.toUpperCase()} ISSUE',
-            'severity': issue['severity'] == 'high' ? 'HIGH' : 'MEDIUM',
-            'currentValue': '$value${issue['unit'] ?? ''}',
-            'optimalRange': optimalRange,
-            'detectedBy': 'Sensor',
-          });
-        }
+        issues.add({
+          'title': '${sensor.toUpperCase()} ISSUE',
+          'severity': issueMap['severity'] == 'high' ? 'HIGH' : 'MEDIUM',
+          'currentValue': '$value${issueMap['unit'] ?? ''}',
+          'optimalRange': optimalRange,
+          'detectedBy': 'Sensor',
+        });
       }
     }
 
     // Check emergency level
-    final emergencyLevel =
-        _intelligentDiagnosis['emergencyLevel']?['level'] ?? 'low';
+    final emergencyLevelMap = _safeGetMap(
+      _intelligentDiagnosis['emergencyLevel'],
+    );
+    final emergencyLevel = emergencyLevelMap['level']?.toString() ?? 'low';
     if (emergencyLevel == 'high' && issues.isEmpty) {
       issues.add({
         'title': 'HIGH PRIORITY ALERT',
@@ -142,28 +166,25 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
 
     for (var i = 0; i < recommendations.length; i++) {
       final rec = recommendations[i];
-      if (rec is Map<String, dynamic>) {
-        // Be more specific
-        final iconString = rec['icon']?.toString() ?? '🌱';
+      if (rec is Map) {
+        final recMap = Map<String, dynamic>.from(rec);
+        final iconString = recMap['icon']?.toString() ?? '🌱';
 
         plan.add({
           'priority': i + 1,
-          'title': rec['action']?.toString() ?? 'Unknown Action',
-          'description': rec['reason']?.toString() ?? '',
-          'severity': _getRecommendationSeverity(rec),
+          'title': recMap['action']?.toString() ?? 'Unknown Action',
+          'description': recMap['reason']?.toString() ?? '',
+          'severity': _getRecommendationSeverity(recMap),
           'icon': iconString,
         });
-      } else {
-        // Handle non-Map items if needed
-        print('⚠️ Non-Map recommendation at index $i: $rec');
       }
     }
 
     // If no recommendations, show healthy maintenance
     if (plan.isEmpty) {
-      final isHealthy =
-          _intelligentDiagnosis['verdict']?.toString().contains('HEALTHY') ??
-          false;
+      final verdict = _intelligentDiagnosis['verdict']?.toString() ?? '';
+      final isHealthy = verdict.contains('HEALTHY');
+
       plan.add({
         'priority': 1,
         'title': isHealthy
@@ -181,25 +202,31 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   }
 
   String _getRecommendationSeverity(Map<String, dynamic> recommendation) {
-    final emergencyLevel =
-        _intelligentDiagnosis['emergencyLevel']?['level'] ?? 'low';
+    final emergencyLevelMap = _safeGetMap(
+      _intelligentDiagnosis['emergencyLevel'],
+    );
+    final emergencyLevel = emergencyLevelMap['level']?.toString() ?? 'low';
+
     if (emergencyLevel == 'high') return 'HIGH';
 
-    final priority = (recommendation['priority'] as num?)?.toInt() ?? 1;
+    final priority = recommendation['priority'] is num
+        ? (recommendation['priority'] as num).toInt()
+        : 1;
     if (priority <= 2) return 'MEDIUM';
     return 'LOW';
   }
 
   // Get health trend data
   Map<String, dynamic> get _healthTrend {
-    final currentHealth = _dashboardSummary['healthScore'] ?? 0.0;
-    final previousHealth = DiagnosticHistory.currentHealth;
+    final currentHealth = _dashboardSummary['healthScore'];
+    final current = currentHealth is num ? currentHealth.toDouble() : 0.0;
+    final previous = DiagnosticHistory.currentHealth;
 
     return {
-      'current': currentHealth,
-      'previous': previousHealth,
+      'current': current,
+      'previous': previous,
       'target': 80.0,
-      'trend': currentHealth >= previousHealth ? 'up' : 'down',
+      'trend': current >= previous ? 'up' : 'down',
     };
   }
 
@@ -257,37 +284,22 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Emergency Banner
             _buildEmergencyBanner(),
             const SizedBox(height: 20),
-
-            // Visual Assessment
             _buildVisualAssessment(),
             const SizedBox(height: 20),
-
-            // Sensor Cross-Verification
             _buildSensorCrossVerification(),
             const SizedBox(height: 20),
-
-            // Issues Detected
             if (_parsedIssues.isNotEmpty) ...[
               _buildIssuesDetected(),
               const SizedBox(height: 20),
             ],
-
-            // Action Plan
             _buildActionPlan(),
             const SizedBox(height: 20),
-
-            // Health Trend
             _buildHealthTrend(),
             const SizedBox(height: 20),
-
-            // Summary
             _buildSummary(),
             const SizedBox(height: 20),
-
-            // Mark Actions Button
             _buildActionButton(),
             const SizedBox(height: 40),
           ],
@@ -297,11 +309,12 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   }
 
   Widget _buildEmergencyBanner() {
-    final emergencyLevel =
-        _intelligentDiagnosis['emergencyLevel']?['level'] ?? 'low';
+    final emergencyLevelMap = _safeGetMap(
+      _intelligentDiagnosis['emergencyLevel'],
+    );
+    final emergencyLevel = emergencyLevelMap['level']?.toString() ?? 'low';
     final message =
-        _intelligentDiagnosis['emergencyLevel']?['message'] ??
-        'MONITOR REGULARLY';
+        emergencyLevelMap['message']?.toString() ?? 'MONITOR REGULARLY';
 
     Color bannerColor;
     IconData icon;
@@ -377,16 +390,14 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   Widget _buildVisualAssessment() {
     final prediction =
         _visualAssessment['cnnPrediction']?.toString() ?? 'Unknown';
-    final confidence =
-        double.tryParse(
-          (_visualAssessment['confidencePercentage']?.toString() ??
-              (_visualAssessment['confidence']?.toString() ?? '0.0')),
-        ) ??
-        0.0;
+    final confidenceStr =
+        _visualAssessment['confidencePercentage']?.toString() ??
+        _visualAssessment['confidence']?.toString() ??
+        '0.0';
+    final confidence = double.tryParse(confidenceStr) ?? 0.0;
     final message =
         _visualAssessment['message']?.toString() ?? 'Visual analysis complete';
 
-    // Determine color based on prediction
     Color diagnosisColor;
     if (prediction.toLowerCase().contains('over') ||
         prediction.toLowerCase().contains('under')) {
@@ -481,11 +492,12 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   }
 
   Widget _buildSensorCrossVerification() {
-    final matchPercentage =
-        (_crossVerification['matchPercentage'] as num?)?.toDouble() ?? 0.0;
+    final matchPercentageNum = _crossVerification['matchPercentage'];
+    final matchPercentage = matchPercentageNum is num
+        ? matchPercentageNum.toDouble()
+        : 0.0;
     final confidence = _crossVerification['confidence']?.toString() ?? 'medium';
-    final sensorCorrelation = _crossVerification['sensorCorrelation'] ?? {};
-    final sensorReadings = _sensorReadings['raw'] ?? widget.sensorData;
+    final sensorReadings = _safeGetMap(_sensorReadings['raw']);
 
     Color matchColor;
     String matchText;
@@ -521,8 +533,6 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Match banner
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
@@ -544,47 +554,6 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
-            // NPK Values
-            const Center(
-              child: Text(
-                'N    P    K',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
-                  letterSpacing: 12,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Center(
-              child: Text(
-                '${_getNPKValue('nitrogen')}    '
-                '${_getNPKValue('phosphorus')}    '
-                '${_getNPKValue('potassium')}',
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  color: textColor,
-                  letterSpacing: 12,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            const Center(
-              child: Text(
-                'ppm    ppm    ppm',
-                style: TextStyle(
-                  color: lightTextColor,
-                  fontSize: 12,
-                  letterSpacing: 8,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Match percentage
             Center(
               child: Text.rich(
                 TextSpan(
@@ -611,31 +580,16 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
             const Divider(),
             const SizedBox(height: 16),
-
-            // Moisture, pH, EC with status indicators
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _buildSensorReading(
                   'Moisture',
                   '${_getSensorValue('moisture').toStringAsFixed(1)}%',
                   _getMoistureStatus(_getSensorValue('moisture')),
                   _getMoistureStatusColor(_getSensorValue('moisture')),
-                ),
-                _buildSensorReading(
-                  'pH',
-                  _getSensorValue('ph').toStringAsFixed(1),
-                  _getPHStatus(_getSensorValue('ph')),
-                  _getPHStatusColor(_getSensorValue('ph')),
-                ),
-                _buildSensorReading(
-                  'EC',
-                  _getSensorValue('ec').toStringAsFixed(1),
-                  _getECStatus(_getSensorValue('ec')),
-                  _getECStatusColor(_getSensorValue('ec')),
                 ),
               ],
             ),
@@ -645,55 +599,23 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
     );
   }
 
-  String _getNPKValue(String nutrient) {
-    final npk = _sensorReadings['calculatedNPK'] ?? widget.sensorData;
-    final value =
-        (npk[nutrient] as num?)?.toDouble() ??
-        (widget.sensorData[nutrient] as num?)?.toDouble() ??
-        0.0;
-    return value.toStringAsFixed(1);
-  }
-
   double _getSensorValue(String key) {
-    final sensorReadings = _sensorReadings['raw'] ?? widget.sensorData;
-    final value = sensorReadings[key];
+    final sensorReadings = _safeGetMap(_sensorReadings['raw']);
+    final value = sensorReadings[key] ?? widget.sensorData[key];
     if (value is num) return value.toDouble();
     if (value is String) return double.tryParse(value) ?? 0.0;
     return 0.0;
   }
 
-  // Helper methods for sensor status
   String _getMoistureStatus(double moisture) {
     if (moisture < 30) return 'Low';
-    if (moisture > 50) return 'High';
+    if (moisture > 70) return 'High';
     return 'Optimal';
   }
 
   Color _getMoistureStatusColor(double moisture) {
     if (moisture < 30) return warningColor;
-    if (moisture > 50) return dangerColor;
-    return successColor;
-  }
-
-  String _getPHStatus(double ph) {
-    if (ph < 6.0) return 'Acidic';
-    if (ph > 7.5) return 'Alkaline';
-    return 'Optimal';
-  }
-
-  Color _getPHStatusColor(double ph) {
-    if (ph < 6.0 || ph > 7.5) return warningColor;
-    return successColor;
-  }
-
-  String _getECStatus(double ec) {
-    if (ec < 1.0) return 'Low';
-    if (ec > 4.0) return 'High';
-    return 'Optimal';
-  }
-
-  Color _getECStatusColor(double ec) {
-    if (ec < 1.0 || ec > 4.0) return warningColor;
+    if (moisture > 70) return dangerColor;
     return successColor;
   }
 
@@ -757,7 +679,6 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
             const Text(
               'Final Diagnosis',
               style: TextStyle(
@@ -767,7 +688,6 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               ),
             ),
             const SizedBox(height: 12),
-
             ..._parsedIssues.map((issue) {
               Color severityColor;
               switch (issue['severity']) {
@@ -852,7 +772,6 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
                 ),
               );
             }).toList(),
-
             const SizedBox(height: 16),
             const Text(
               'AI Reasoning',
@@ -897,7 +816,6 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
             ..._actionPlan.map((action) {
               Color severityColor;
               switch (action['severity']) {
@@ -1009,14 +927,13 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
             Row(
               children: [
                 Expanded(
                   child: Column(
                     children: [
                       Text(
-                        '${trend['previous'].toStringAsFixed(1)}%',
+                        '${(trend['previous'] as num?)?.toStringAsFixed(1) ?? '0.0'}%',
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w700,
@@ -1048,7 +965,7 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
                   child: Column(
                     children: [
                       Text(
-                        '${trend['current'].toStringAsFixed(1)}%',
+                        '${(trend['current'] as num?)?.toStringAsFixed(1) ?? '0.0'}%',
                         style: TextStyle(
                           fontSize: 36,
                           fontWeight: FontWeight.w800,
@@ -1066,10 +983,8 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               ],
             ),
             const SizedBox(height: 20),
-
             const Divider(),
             const SizedBox(height: 12),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -1081,7 +996,7 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
                       style: TextStyle(color: lightTextColor, fontSize: 12),
                     ),
                     Text(
-                      '>${trend['target']}%',
+                      '>${(trend['target'] as num?)?.toStringAsFixed(0) ?? '80'}%',
                       style: const TextStyle(
                         color: textColor,
                         fontWeight: FontWeight.w600,
@@ -1100,7 +1015,7 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
                       ),
                     ),
                     Text(
-                      '${(trend['current'] - trend['previous']).toStringAsFixed(1)}% ${isImproving ? 'better' : 'worse'}',
+                      '${((trend['current'] as num? ?? 0) - (trend['previous'] as num? ?? 0)).toStringAsFixed(1)}% ${isImproving ? 'better' : 'worse'}',
                       style: TextStyle(color: lightTextColor, fontSize: 12),
                     ),
                   ],
@@ -1114,8 +1029,8 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   }
 
   Widget _buildSummary() {
-    final insights = _dashboardSummary['insights'] ?? {};
-    final reminders = _dashboardSummary['reminders'] ?? [];
+    final insights = _safeGetMap(_dashboardSummary['insights']);
+    final reminders = _safeGetList(_dashboardSummary['reminders']);
 
     return Material(
       color: cardColor,
@@ -1144,7 +1059,6 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
               ),
             ),
             const SizedBox(height: 20),
-
             _buildChecklistItem(
               Icons.check_circle,
               insights['whatsWorking']?.toString() ?? 'Plant structure intact',
@@ -1158,7 +1072,7 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
             if (reminders.isNotEmpty)
               _buildChecklistItem(
                 Icons.notifications_active,
-                reminders.first['title']?.toString() ?? 'Next checkup',
+                (reminders.first as Map)['title']?.toString() ?? 'Next checkup',
                 primaryColor,
               ),
             _buildChecklistItem(
@@ -1191,9 +1105,7 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: () {
-          _markActionsComplete();
-        },
+        onPressed: _markActionsComplete,
         style: ElevatedButton.styleFrom(
           backgroundColor: _isHealthy ? successColor : primaryColor,
           foregroundColor: Colors.white,
@@ -1229,7 +1141,6 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   }
 
   void _shareReport() {
-    // TODO: Implement share functionality
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Share functionality coming soon!'),

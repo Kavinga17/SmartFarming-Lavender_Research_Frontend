@@ -5,6 +5,7 @@ import 'climate_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
+import 'soil_health_dashboard.dart'; // Import your soil health dashboard
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -20,6 +21,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String? _profileImageUrl;
 
+  // Soil health data
+  double _currentMoisture = 65.0;
+  double _currentTemperature = 24.0;
+  bool _isLoadingSensorData = false;
+
   // Colors
   static const Color backgroundColor = Color(0xFFF8F9FA);
   static const Color primaryPurple = Color(0xFF8B5CF6);
@@ -34,15 +40,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _loadUserProfile();
+    _fetchSensorData();
   }
 
   Future<void> _loadUserProfile() async {
     try {
       User? user = _auth.currentUser;
       if (user != null) {
-        DocumentSnapshot userDoc = await _firestore.collection('users').doc(user.uid).get();
+        DocumentSnapshot userDoc = await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .get();
         if (userDoc.exists && mounted) {
-          Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+          Map<String, dynamic> userData =
+              userDoc.data() as Map<String, dynamic>;
           setState(() {
             _profileImageUrl = userData['profileImageUrl'];
           });
@@ -50,6 +61,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
     } catch (e) {
       // Silently fail - profile image not critical
+    }
+  }
+
+  Future<void> _fetchSensorData() async {
+    setState(() => _isLoadingSensorData = true);
+
+    try {
+      // Try to get from ESP32/backend
+      // This would be replaced with actual API call
+      // final sensorData = await SoilApiService.getLatestSensorData();
+
+      // For now, simulate changing values
+      await Future.delayed(const Duration(seconds: 1));
+
+      if (mounted) {
+        setState(() {
+          // Simulate moisture changing between 45-75%
+          _currentMoisture = 45 + (DateTime.now().second % 30).toDouble();
+          _currentTemperature = 22 + (DateTime.now().minute % 8).toDouble();
+          _isLoadingSensorData = false;
+        });
+      }
+    } catch (e) {
+      setState(() => _isLoadingSensorData = false);
     }
   }
 
@@ -68,77 +103,75 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _buildTabNavigation(),
             // Main Content
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    // Lavender Plant Health Card
-                    _buildHealthCard(),
-                    const SizedBox(height: 16),
-                    // Disease Detection Card
-                    _buildFeatureCard(
-                      icon: Icons.bug_report_outlined,
-                      iconColor: primaryPurple,
-                      iconBgColor: primaryPurple.withOpacity(0.1),
-                      title: 'Disease Detection',
-                      subtitle: 'AI-powered plant health monitoring',
-                      badge: '2 Scans Today',
-                      badgeColor: primaryPurple,
-                      actionText: 'Tap to Scan',
-                      onTap: () {},
-                    ),
-                    const SizedBox(height: 16),
-                    // Soil Health Card
-                    _buildFeatureCard(
-                      icon: Icons.eco_outlined,
-                      iconColor: primaryOrange,
-                      iconBgColor: primaryOrange.withOpacity(0.1),
-                      title: 'Soil Health',
-                      subtitle: 'AI-powered soil health monitoring',
-                      badge: 'Moisture: 65%',
-                      badgeColor: primaryOrange,
-                      actionText: 'Run Diagnostic',
-                      onTap: () {},
-                    ),
-                    const SizedBox(height: 16),
-                    // Climate Control Card
-                    _buildFeatureCard(
-                      icon: Icons.thermostat_outlined,
-                      iconColor: const Color(0xFFEF4444),
-                      iconBgColor: const Color(0xFFEF4444).withOpacity(0.1),
-                      title: 'Climate Control',
-                      subtitle: 'Temperature & humidity monitoring',
-                      badge: 'Temp: 24°C',
-                      badgeColor: primaryOrange,
-                      actionText: 'View Climate',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const ClimateScreen()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    // Lighting System Card
-                    _buildFeatureCard(
-                      icon: Icons.wb_sunny_outlined,
-                      iconColor: primaryYellow,
-                      iconBgColor: primaryYellow.withOpacity(0.1),
-                      title: 'Lighting System',
-                      subtitle: 'Smart light management',
-                      badge: 'Status: Auto',
-                      badgeColor: primaryYellow,
-                      actionText: 'Control Lights',
-                      onTap: () {},
-                    ),
-                    const SizedBox(height: 20),
-                    // Stats Row
-                    _buildStatsRow(),
-                    const SizedBox(height: 20),
-                    // Recent Activity
-                    _buildRecentActivity(),
-                    const SizedBox(height: 20),
-                  ],
+              child: RefreshIndicator(
+                onRefresh: _fetchSensorData,
+                color: primaryGreen,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      // Lavender Plant Health Card
+                      _buildHealthCard(),
+                      const SizedBox(height: 16),
+                      // Disease Detection Card
+                      _buildFeatureCard(
+                        icon: Icons.bug_report_outlined,
+                        iconColor: primaryPurple,
+                        iconBgColor: primaryPurple.withOpacity(0.1),
+                        title: 'Disease Detection',
+                        subtitle: 'AI-powered plant health monitoring',
+                        badge: '2 Scans Today',
+                        badgeColor: primaryPurple,
+                        actionText: 'Tap to Scan',
+                        onTap: () {},
+                      ),
+                      const SizedBox(height: 16),
+                      // Soil Health Card - FIXED - Now matches other cards
+                      _buildSoilHealthCard(),
+                      const SizedBox(height: 16),
+                      // Climate Control Card
+                      _buildFeatureCard(
+                        icon: Icons.thermostat_outlined,
+                        iconColor: const Color(0xFFEF4444),
+                        iconBgColor: const Color(0xFFEF4444).withOpacity(0.1),
+                        title: 'Climate Control',
+                        subtitle: 'Temperature & humidity monitoring',
+                        badge:
+                            'Temp: ${_currentTemperature.toStringAsFixed(0)}°C',
+                        badgeColor: primaryOrange,
+                        actionText: 'View Climate',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ClimateScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      // Lighting System Card
+                      _buildFeatureCard(
+                        icon: Icons.wb_sunny_outlined,
+                        iconColor: primaryYellow,
+                        iconBgColor: primaryYellow.withOpacity(0.1),
+                        title: 'Lighting System',
+                        subtitle: 'Smart light management',
+                        badge: 'Status: Auto',
+                        badgeColor: primaryYellow,
+                        actionText: 'Control Lights',
+                        onTap: () {},
+                      ),
+                      const SizedBox(height: 20),
+                      // Stats Row
+                      _buildStatsRow(),
+                      const SizedBox(height: 20),
+                      // Recent Activity
+                      _buildRecentActivity(),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -149,6 +182,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildHeader() {
+    final user = _auth.currentUser;
+    final userName = user?.displayName?.split(' ')[0] ?? 'User';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
@@ -164,6 +200,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               Row(
                 children: [
+                  // Loading indicator for sensor data
+                  if (_isLoadingSensorData)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(primaryGreen),
+                      ),
+                    ),
+                  if (_isLoadingSensorData) const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.notifications_outlined),
                     color: primaryOrange,
@@ -177,7 +224,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const SettingsScreen(),
+                        ),
                       ).then((_) => _loadUserProfile());
                     },
                   ),
@@ -185,7 +234,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const ProfileScreen(),
+                        ),
                       ).then((_) => _loadUserProfile());
                     },
                     child: Container(
@@ -221,29 +272,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Lavender Farm System',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: textDark,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Smart Agriculture Management',
-            style: TextStyle(
-              fontSize: 14,
-              color: textGrey,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Monday, January 5, 2026 | 9:13 PM',
-            style: TextStyle(
-              fontSize: 12,
-              color: textGrey.withOpacity(0.8),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Welcome back,',
+                    style: TextStyle(fontSize: 14, color: textGrey),
+                  ),
+                  Text(
+                    userName,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: textDark,
+                    ),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    'Lavender Farm',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: primaryGreen,
+                    ),
+                  ),
+                  Text(
+                    'Smart Agriculture',
+                    style: TextStyle(fontSize: 12, color: textGrey),
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
@@ -261,9 +327,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Container(
       decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: Colors.grey.shade200),
-        ),
+        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -299,7 +363,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     style: TextStyle(
                       fontSize: 11,
                       color: isSelected ? primaryGreen : textGrey,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                   ),
                 ],
@@ -370,11 +436,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ],
                         ),
-                        Icon(
-                          Icons.eco,
-                          size: 24,
-                          color: Colors.green[600],
-                        ),
+                        Icon(Icons.eco, size: 24, color: Colors.green[600]),
                       ],
                     ),
                   ],
@@ -399,7 +461,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Overall System Status',
+                  'Last scan: 2 hours ago',
                   style: TextStyle(
                     fontSize: 12,
                     color: textGrey.withOpacity(0.8),
@@ -436,14 +498,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const Text(
                 'Health Score',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: textGrey,
-                ),
+                style: TextStyle(fontSize: 12, color: textGrey),
               ),
               const SizedBox(height: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: primaryGreen,
                   borderRadius: BorderRadius.circular(12),
@@ -493,6 +555,168 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // FIXED Soil Health Card - Now matches other cards perfectly
+  Widget _buildSoilHealthCard() {
+    // Determine moisture status color
+    Color moistureColor;
+    String moistureStatus;
+
+    if (_currentMoisture < 30) {
+      moistureColor = Colors.red;
+      moistureStatus = 'Too Dry';
+    } else if (_currentMoisture > 70) {
+      moistureColor = Colors.orange;
+      moistureStatus = 'Too Wet';
+    } else {
+      moistureColor = primaryGreen;
+      moistureStatus = 'Optimal';
+    }
+
+    return Container(
+      width: double.infinity,
+      height: 220,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white, // Simple white background
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          // Icon and Title Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: primaryOrange.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.eco_outlined,
+                  color: primaryOrange,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Soil Health',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: textDark,
+                ),
+              ),
+            ],
+          ),
+
+          // Moisture Indicator
+          Column(
+            children: [
+              const Text(
+                'Soil Moisture',
+                style: TextStyle(fontSize: 12, color: textGrey),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _isLoadingSensorData
+                        ? '--'
+                        : _currentMoisture.toStringAsFixed(1),
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                      color: moistureColor,
+                    ),
+                  ),
+                  const Text(
+                    '%',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: textGrey,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: moistureColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _isLoadingSensorData ? 'Loading...' : moistureStatus,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: moistureColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Action Button
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      SoilHealthDashboard(initialMoisture: _currentMoisture),
+                ),
+              ).then((_) => _fetchSensorData()); // Refresh data when returning
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              decoration: BoxDecoration(
+                color: primaryOrange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Run Diagnostic',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: primaryOrange,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.arrow_forward,
+                    color: primaryOrange,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // FIXED Feature Card - Now matches Soil Health card with white background
   Widget _buildFeatureCard({
     required IconData icon,
     required Color iconColor,
@@ -509,27 +733,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       height: 200,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white,
-            Color(0xFFFAFAFA),
-          ],
-        ),
+        color: Colors.white, // Simple white background
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: iconColor.withOpacity(0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-            spreadRadius: 0,
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -556,13 +766,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           // Subtitle
-          Text(
-            subtitle,
-            style: const TextStyle(
-              fontSize: 12,
-              color: textGrey,
-            ),
-          ),
+          Text(subtitle, style: const TextStyle(fontSize: 12, color: textGrey)),
           // Badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -594,11 +798,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 const SizedBox(width: 4),
-                const Icon(
-                  Icons.arrow_forward,
-                  color: primaryOrange,
-                  size: 16,
-                ),
+                const Icon(Icons.arrow_forward, color: primaryOrange, size: 16),
               ],
             ),
           ),
@@ -607,31 +807,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // FIXED Stats Row - Now matches with white background
   Widget _buildStatsRow() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white,
-            Color(0xFFFAFAFA),
-          ],
-        ),
+        color: Colors.white, // Simple white background
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            blurRadius: 6,
-            offset: const Offset(0, 3),
-            spreadRadius: 0,
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -658,7 +845,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: _buildStatItem(
               icon: Icons.thermostat_outlined,
               iconColor: primaryOrange,
-              value: '24°C',
+              value: _isLoadingSensorData
+                  ? '--'
+                  : '${_currentTemperature.toStringAsFixed(0)}°C',
               label: 'Current\nTemp',
             ),
           ),
@@ -716,15 +905,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Text(
           label,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 10,
-            color: textGrey,
-          ),
+          style: const TextStyle(fontSize: 10, color: textGrey),
         ),
       ],
     );
   }
 
+  // FIXED Recent Activity - Now matches with white background
   Widget _buildRecentActivity() {
     return Column(
       children: [
@@ -798,27 +985,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white,
-            Color(0xFFFCFCFC),
-          ],
-        ),
+        color: Colors.white, // Simple white background
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: iconColor.withOpacity(0.12),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
-            offset: const Offset(0, 4),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
-            blurRadius: 4,
             offset: const Offset(0, 2),
-            spreadRadius: 0,
           ),
         ],
       ),
@@ -849,19 +1022,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(height: 2),
                 Text(
                   time,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: textGrey,
-                  ),
+                  style: const TextStyle(fontSize: 12, color: textGrey),
                 ),
               ],
             ),
           ),
-          Icon(
-            Icons.chevron_right,
-            color: Colors.grey.shade300,
-            size: 20,
-          ),
+          Icon(Icons.chevron_right, color: Colors.grey.shade300, size: 20),
         ],
       ),
     );
@@ -883,7 +1049,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const ProfileScreen(),
+                  ),
                 ).then((_) => _loadUserProfile());
               },
               child: Container(
@@ -892,10 +1060,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      primaryPurple,
-                      primaryPurple.withOpacity(0.8),
-                    ],
+                    colors: [primaryPurple, primaryPurple.withOpacity(0.8)],
                   ),
                 ),
                 padding: EdgeInsets.only(
@@ -978,13 +1143,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     },
                   ),
                   _buildDrawerItem(
+                    icon: Icons.eco_outlined,
+                    title: 'Soil Health',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SoilHealthDashboard(
+                            initialMoisture: _currentMoisture,
+                          ),
+                        ),
+                      ).then((_) => _fetchSensorData());
+                    },
+                  ),
+                  _buildDrawerItem(
                     icon: Icons.person_outline,
                     title: 'Profile',
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const ProfileScreen(),
+                        ),
                       ).then((_) => _loadUserProfile());
                     },
                   ),
@@ -995,7 +1177,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => const SettingsScreen(),
+                        ),
                       ).then((_) => _loadUserProfile());
                     },
                   ),
@@ -1023,9 +1207,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             // Logout Button at bottom
             Container(
               decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Colors.grey.shade200),
-                ),
+                border: Border(top: BorderSide(color: Colors.grey.shade200)),
               ),
               child: _buildDrawerItem(
                 icon: Icons.logout,
@@ -1053,11 +1235,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     Color? titleColor,
   }) {
     return ListTile(
-      leading: Icon(
-        icon,
-        color: iconColor ?? textDark,
-        size: 24,
-      ),
+      leading: Icon(icon, color: iconColor ?? textDark, size: 24),
       title: Text(
         title,
         style: TextStyle(
@@ -1082,10 +1260,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           title: const Text(
             'Logout',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-            ),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
           ),
           content: const Text(
             'Are you sure you want to logout?',
@@ -1114,14 +1289,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
               ),
               child: const Text(
                 'Logout',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
           ],
@@ -1134,7 +1309,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       await _auth.signOut();
       if (!mounted) return;
-      
+
       // Navigate to login screen and remove all previous routes
       Navigator.pushAndRemoveUntil(
         context,
@@ -1148,7 +1323,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           content: Text('Logout failed: $e'),
           backgroundColor: Colors.red[400],
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           margin: const EdgeInsets.all(16),
         ),
       );
