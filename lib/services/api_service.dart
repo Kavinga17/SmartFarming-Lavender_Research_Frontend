@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
-import 'dart:html' as html;
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
 class ApiService {
@@ -9,11 +9,10 @@ class ApiService {
   /// Test backend connection
   static Future<bool> testConnection() async {
     try {
-      final response = await html.HttpRequest.request(
-        '$baseUrl/health',
-        method: 'GET',
-      );
-      return response.status == 200;
+      final response = await http
+          .get(Uri.parse('$baseUrl/health'))
+          .timeout(const Duration(seconds: 5));
+      return response.statusCode == 200;
     } catch (e) {
       print('🔌 Connection test failed: $e');
       return false;
@@ -30,73 +29,56 @@ class ApiService {
     print('📸 Image: ${image.name} (${(await image.length()) / 1024}KB)');
 
     try {
-      // Create FormData
-      final formData = html.FormData();
-
-      // Read file as blob
       final bytes = await image.readAsBytes();
-      final blob = html.Blob([bytes], 'image/jpeg');
 
-      // Append file
-      formData.appendBlob('image', blob, image.name);
+      // Build multipart request
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/analysis'),
+      );
 
-      // Append sensor data with proper encoding
-      formData.append('sensorData', jsonEncode(sensorData));
+      // Attach image
+      request.files.add(http.MultipartFile.fromBytes(
+        'image',
+        bytes,
+        filename: image.name,
+      ));
 
-      // Create and configure request
-      final request = html.HttpRequest();
-      request.open('POST', '$baseUrl/api/analysis');
-      request.timeout = 60000; // 60 second timeout
+      // Attach sensor data as JSON string
+      request.fields['sensorData'] = jsonEncode(sensorData);
 
-      final completer = Completer<Map<String, dynamic>>();
-
-      request.onLoad.listen((event) {
-        print('📥 Response received: ${request.status}');
-
-        if (request.status == 200) {
-          try {
-            final response = jsonDecode(request.responseText!);
-            print('✅ Analysis successful');
-            print(
-              '📈 Health Score: ${response['dashboardSummary']?['healthScore']}%',
-            );
-            print(
-              '🤝 Cross-verification: ${response['crossVerification']?['matchPercentage']}% match',
-            );
-
-            completer.complete(response);
-          } catch (e) {
-            print('❌ JSON parse error: $e');
-            print('Raw response: ${request.responseText}');
-            completer.completeError(Exception('JSON parse error: $e'));
-          }
-        } else {
-          print('❌ Server error ${request.status}: ${request.responseText}');
-          completer.completeError(
-            Exception(
-              'Server error ${request.status}: ${request.responseText}',
-            ),
-          );
-        }
-      });
-
-      request.onError.listen((event) {
-        print('❌ Network error during analysis');
-        completer.completeError(Exception('Network error during analysis'));
-      });
-
-      // Show timeout warning
-      Timer(const Duration(seconds: 30), () {
-        if (!completer.isCompleted) {
-          print('⏰ Analysis taking longer than expected...');
-        }
-      });
-
-      // Send request
       print('🚀 Sending request to backend...');
-      request.send(formData);
 
-      return await completer.future;
+      final streamedResponse = await request
+          .send()
+          .timeout(const Duration(seconds: 60));
+
+      final responseBody = await streamedResponse.stream.bytesToString();
+
+      print('📥 Response received: ${streamedResponse.statusCode}');
+
+      if (streamedResponse.statusCode == 200) {
+        try {
+          final response = jsonDecode(responseBody);
+          print('✅ Analysis successful');
+          print(
+            '📈 Health Score: ${response['dashboardSummary']?['healthScore']}%',
+          );
+          print(
+            '🤝 Cross-verification: ${response['crossVerification']?['matchPercentage']}% match',
+          );
+          return response;
+        } catch (e) {
+          print('❌ JSON parse error: $e');
+          print('Raw response: $responseBody');
+          throw Exception('JSON parse error: $e');
+        }
+      } else {
+        print('❌ Server error ${streamedResponse.statusCode}: $responseBody');
+        throw Exception(
+          'Server error ${streamedResponse.statusCode}: $responseBody',
+        );
+      }
     } catch (e) {
       print('💥 Unexpected error in analyzePlant: $e');
       rethrow;
@@ -106,13 +88,12 @@ class ApiService {
   /// Get analysis history (if you implement this endpoint)
   static Future<List<Map<String, dynamic>>> getAnalysisHistory() async {
     try {
-      final response = await html.HttpRequest.request(
-        '$baseUrl/api/analysis/history',
-        method: 'GET',
-      );
+      final response = await http
+          .get(Uri.parse('$baseUrl/api/analysis/history'))
+          .timeout(const Duration(seconds: 10));
 
-      if (response.status == 200) {
-        final data = jsonDecode(response.responseText!);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
         return List<Map<String, dynamic>>.from(data['history'] ?? []);
       }
       return [];
@@ -125,13 +106,12 @@ class ApiService {
   /// Get quick analysis summary for dashboard
   static Future<Map<String, dynamic>> getQuickSummary() async {
     try {
-      final response = await html.HttpRequest.request(
-        '$baseUrl/api/analysis/summary',
-        method: 'GET',
-      );
+      final response = await http
+          .get(Uri.parse('$baseUrl/api/analysis/summary'))
+          .timeout(const Duration(seconds: 10));
 
-      if (response.status == 200) {
-        return jsonDecode(response.responseText!);
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
       }
       return {'status': 'no_data', 'message': 'No analysis data available'};
     } catch (e) {

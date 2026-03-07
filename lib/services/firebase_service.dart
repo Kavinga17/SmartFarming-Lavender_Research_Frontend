@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data' as typed_data;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart';
 
 /// Firebase Service - Centralized Firebase functionality
@@ -26,7 +28,8 @@ class FirebaseService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  // GoogleSignIn is only used on non-web platforms.
+  final GoogleSignIn? _googleSignIn = kIsWeb ? null : GoogleSignIn();
 
   // Getters for Firebase instances
   FirebaseAuth get auth => _auth;
@@ -74,26 +77,34 @@ class FirebaseService {
   /// Sign in with Google
   Future<UserCredential?> signInWithGoogle() async {
     try {
-      // Trigger the authentication flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      
-      if (googleUser == null) {
-        throw Exception('Google sign-in was cancelled');
+      if (kIsWeb) {
+        // On web: use Firebase's built-in Google popup (no client ID needed in code)
+        final googleProvider = GoogleAuthProvider();
+        final userCredential = await _auth.signInWithPopup(googleProvider);
+        await _logAnalyticsEvent('login', {'method': 'google'});
+        return userCredential;
+      } else {
+        // On mobile: use google_sign_in package
+        final GoogleSignInAccount? googleUser = await _googleSignIn!.signIn();
+
+        if (googleUser == null) {
+          throw Exception('Google sign-in was cancelled');
+        }
+
+        // Obtain the auth details from the request
+        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+        // Create a new credential
+        final credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+
+        // Sign in to Firebase with the credential
+        final userCredential = await _auth.signInWithCredential(credential);
+        await _logAnalyticsEvent('login', {'method': 'google'});
+        return userCredential;
       }
-
-      // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-      // Create a new credential
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      // Sign in to Firebase with the credential
-      final userCredential = await _auth.signInWithCredential(credential);
-      await _logAnalyticsEvent('login', {'method': 'google'});
-      return userCredential;
     } catch (e) {
       throw Exception('Google sign-in failed: $e');
     }
@@ -101,7 +112,7 @@ class FirebaseService {
 
   /// Sign out
   Future<void> signOut() async {
-    await _googleSignIn.signOut();
+    if (!kIsWeb) await _googleSignIn?.signOut();
     await _auth.signOut();
     await _logAnalyticsEvent('logout', {});
   }
@@ -246,7 +257,11 @@ class FirebaseService {
   Future<String> uploadBytes(String path, List<int> bytes, {String? contentType}) async {
     final ref = _storage.ref().child(path);
     final metadata = contentType != null ? SettableMetadata(contentType: contentType) : null;
-    final uploadTask = ref.putData(Uint8List.fromList(bytes), metadata);
+    // Convert to Uint8List explicitly for putData
+    final typedBytes = bytes is typed_data.Uint8List
+        ? bytes
+        : typed_data.Uint8List.fromList(bytes);
+    final uploadTask = ref.putData(typedBytes, metadata);
     final snapshot = await uploadTask;
     return await snapshot.ref.getDownloadURL();
   }

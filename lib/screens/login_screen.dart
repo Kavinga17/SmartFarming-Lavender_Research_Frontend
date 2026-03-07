@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dashboard_screen.dart';
@@ -17,7 +19,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  // GoogleSignIn is only used on non-web platforms.
+  // On web, we use Firebase's signInWithPopup (no client ID required in code).
+  final GoogleSignIn? _googleSignIn = kIsWeb ? null : GoogleSignIn();
   final LocalAuthentication _localAuth = LocalAuthentication();
   bool _obscurePassword = true;
   bool _isLoading = false;
@@ -130,20 +134,27 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return; // User cancelled
+      if (kIsWeb) {
+        // On web: use Firebase's built-in Google popup (no GoogleSignIn client ID needed)
+        final googleProvider = GoogleAuthProvider();
+        await _auth.signInWithPopup(googleProvider);
+      } else {
+        // On mobile: use google_sign_in package
+        final GoogleSignInAccount? googleUser = await _googleSignIn!.signIn();
+        if (googleUser == null) {
+          setState(() => _isLoading = false);
+          return; // User cancelled
+        }
+
+        final GoogleSignInAuthentication googleAuth =
+            await googleUser.authentication;
+        final credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+
+        await _auth.signInWithCredential(credential);
       }
-
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      await _auth.signInWithCredential(credential);
       if (!mounted) return;
       _showMessage('Signed in with Google!');
       Navigator.pushReplacement(
@@ -152,6 +163,44 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } catch (e) {
       _showMessage('Google sign-in failed: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleFacebookSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      // Trigger the Facebook login flow
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['email', 'public_profile'],
+      );
+
+      if (result.status == LoginStatus.success) {
+        // Get the access token
+        final AccessToken accessToken = result.accessToken!;
+
+        // Create a credential from the access token
+        final OAuthCredential credential = FacebookAuthProvider.credential(
+          accessToken.tokenString,
+        );
+
+        // Sign in to Firebase with the Facebook credential
+        await _auth.signInWithCredential(credential);
+        
+        if (!mounted) return;
+        _showMessage('Signed in with Facebook!');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => DashboardScreen()),
+        );
+      } else if (result.status == LoginStatus.cancelled) {
+        _showMessage('Facebook sign-in cancelled', isError: true);
+      } else {
+        _showMessage('Facebook sign-in failed: ${result.message}', isError: true);
+      }
+    } catch (e) {
+      _showMessage('Facebook sign-in error: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -661,7 +710,7 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(width: 20),
         // Facebook
         _socialLoginButton(
-          onPressed: () {},
+          onPressed: _isLoading ? () {} : _handleFacebookSignIn,
           child: const Icon(
             Icons.facebook,
             color: Color(0xFF1877F2),

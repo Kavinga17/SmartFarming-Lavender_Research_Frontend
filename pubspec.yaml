@@ -35,8 +35,14 @@ dependencies:
   # Google Sign-In
   google_sign_in: ^6.2.2
   
+  # Facebook Sign-In
+  flutter_facebook_auth: ^7.1.1
+  
   # Biometric Authentication
   local_auth: ^2.1.7
+  
+  # Date formatting
+  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:

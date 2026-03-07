@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Lavender AI App</string>
+    <string name="facebook_app_id">1431868658731551</string>
+    <string name="facebook_client_token">69e0ab8371198493cbf02c13ba2dffda</string>
+    <string name="fb_login_protocol_scheme">fb1431868658731551</string>
+</resources>

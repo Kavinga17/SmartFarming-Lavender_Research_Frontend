@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'climate_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
@@ -148,6 +149,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  String _getCurrentDateTime() {
+    final now = DateTime.now();
+    final dateFormat = DateFormat('EEEE, MMMM d, yyyy');
+    final timeFormat = DateFormat('h:mm a');
+    return '${dateFormat.format(now)} | ${timeFormat.format(now)}';
+  }
+
+  String _getRelativeTime(int minutesAgo) {
+    if (minutesAgo < 60) {
+      return '$minutesAgo mins ago';
+    } else {
+      final hours = (minutesAgo / 60).floor();
+      return '$hours hour${hours > 1 ? 's' : ''} ago';
+    }
+  }
+
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -239,7 +256,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Monday, January 5, 2026 | 9:13 PM',
+            _getCurrentDateTime(),
             style: TextStyle(
               fontSize: 12,
               color: textGrey.withOpacity(0.8),
@@ -760,28 +777,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
           iconBgColor: const Color(0xFFE0F2FE),
           iconColor: const Color(0xFF0EA5E9),
           title: 'Disease scan completed',
-          time: '5 mins ago',
+          time: _getRelativeTime(5),
         ),
         _buildActivityItem(
           icon: Icons.water_drop_outlined,
           iconBgColor: const Color(0xFFDCFCE7),
           iconColor: primaryGreen,
           title: 'Irrigation cycle started',
-          time: '25 mins ago',
+          time: _getRelativeTime(25),
         ),
         _buildActivityItem(
           icon: Icons.thermostat_outlined,
           iconBgColor: const Color(0xFFFEE2E2),
           iconColor: const Color(0xFFEF4444),
           title: 'Temp adjusted to 24°C',
-          time: '1 hour ago',
+          time: _getRelativeTime(60),
         ),
         _buildActivityItem(
           icon: Icons.wb_sunny_outlined,
           iconBgColor: const Color(0xFFFEF3C7),
           iconColor: primaryYellow,
           title: 'Light intensity increased',
-          time: '2 hours ago',
+          time: _getRelativeTime(120),
         ),
       ],
     );

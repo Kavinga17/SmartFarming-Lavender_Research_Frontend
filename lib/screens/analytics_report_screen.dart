@@ -2,8 +2,10 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../services/climate_data_service.dart';
 
 // Shared colors
 const Color backgroundColor = Color(0xFFF8F9FA);
@@ -24,6 +26,76 @@ class _AnalyticsReportScreenState extends State<AnalyticsReportScreen> {
   final GlobalKey _reportKey = GlobalKey();
   int _selectedMetric = 2; // Last month as default
 
+  // Dynamic chart data loaded from Firestore
+  List<double> _tempData = [];
+  List<double> _humData = [];
+  List<double> _ventData = [];
+  List<String> _chartLabels = [];
+  ClimateStats _stats = ClimateStats.empty();
+  bool _isLoading = true;
+  int _totalReadings = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAnalyticsData();
+  }
+
+  /// Load chart data from Firestore for the selected time period.
+  Future<void> _loadAnalyticsData() async {
+    setState(() => _isLoading = true);
+    try {
+      String period;
+      switch (_selectedMetric) {
+        case 0:
+          period = 'today';
+          break;
+        case 1:
+          period = '7days';
+          break;
+        case 2:
+        case 3:
+        default:
+          period = '30days';
+          break;
+      }
+      final readings = await ClimateDataService.getReadingsForPeriod(period);
+      if (!mounted) return;
+      if (readings.isEmpty) {
+        setState(() {
+          _tempData = [];
+          _humData = [];
+          _ventData = [];
+          _chartLabels = [];
+          _stats = ClimateStats.empty();
+          _totalReadings = 0;
+          _isLoading = false;
+        });
+        return;
+      }
+      final sampled = ClimateDataService.downsample(readings, 12);
+      final stats = ClimateDataService.computeStats(readings);
+      final labels = sampled.map((r) {
+        if (r.timestamp == null) return '';
+        if (period == 'today') return DateFormat('HH:mm').format(r.timestamp!);
+        return DateFormat('dd/MM').format(r.timestamp!);
+      }).toList();
+
+      setState(() {
+        _tempData = sampled.map((r) => r.airTemp).toList();
+        _humData = sampled.map((r) => r.humidity).toList();
+        _ventData = sampled.map((r) => r.fanSpeed).toList();
+        _chartLabels = labels;
+        _stats = stats;
+        _totalReadings = readings.length;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Failed to load analytics data: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _downloadPdf() async {
     try {
       final boundary = _reportKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
@@ -43,7 +115,7 @@ class _AnalyticsReportScreenState extends State<AnalyticsReportScreen> {
 
       await Printing.sharePdf(bytes: await doc.save(), filename: 'analytics_report.pdf');
     } catch (e) {
-      // Ignore for now; could show a snackbar
+      // Ignore for now
     }
   }
 
@@ -68,12 +140,35 @@ class _AnalyticsReportScreenState extends State<AnalyticsReportScreen> {
                         const SizedBox(height: 16),
                         _buildMetricsFilter(),
                         const SizedBox(height: 16),
-                        _buildTemperatureSection(),
-                        const SizedBox(height: 16),
-                        _buildHumiditySection(),
-                        const SizedBox(height: 16),
-                        _buildVentilationSection(),
-                        const SizedBox(height: 8),
+                        if (_isLoading)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 48),
+                            child: Center(child: CircularProgressIndicator()),
+                          )
+                        else if (_totalReadings == 0)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 48),
+                            child: Center(
+                              child: Column(
+                                children: [
+                                  Icon(Icons.analytics_outlined, size: 48, color: Colors.grey.shade300),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'No data available for this period',
+                                    style: TextStyle(color: textGrey, fontSize: 14),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        else ...[
+                          _buildTemperatureSection(),
+                          const SizedBox(height: 16),
+                          _buildHumiditySection(),
+                          const SizedBox(height: 16),
+                          _buildVentilationSection(),
+                          const SizedBox(height: 8),
+                        ],
                       ],
                     ),
                   ),
@@ -124,6 +219,7 @@ class _AnalyticsReportScreenState extends State<AnalyticsReportScreen> {
   }
 
   Widget _buildSummary() {
+    final periodName = ['Today', 'Last 7 days', 'Last month', 'Custom'][_selectedMetric];
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -151,21 +247,25 @@ class _AnalyticsReportScreenState extends State<AnalyticsReportScreen> {
           const SizedBox(height: 8),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Expanded(
                 child: _SummaryColumn(items: {
                   'Plant': 'Lavender',
-                  'Amount': '200 plants',
-                  'Age': '2 month',
-                  'Stage': 'Fruiting',
+                  'Period': periodName,
+                  'Readings': '$_totalReadings',
                   'Current AI mode': 'Active / Auto',
                 }),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
-                child: _SummaryColumn(items: {
-                  '': '',
-                }),
+                child: _SummaryColumn(items: _totalReadings > 0
+                    ? {
+                        'Avg Temp': '${_stats.avgTemp.toStringAsFixed(1)}\u00B0C',
+                        'Avg Humidity': '${_stats.avgHumidity.toStringAsFixed(1)}%',
+                        'Avg Fan': '${_stats.avgFanSpeed.toStringAsFixed(1)}%',
+                        'Temp Range': '${_stats.minTemp.toStringAsFixed(1)} - ${_stats.maxTemp.toStringAsFixed(1)}\u00B0C',
+                      }
+                    : {'': ''}),
               ),
             ],
           ),
@@ -184,7 +284,10 @@ class _AnalyticsReportScreenState extends State<AnalyticsReportScreen> {
         return Padding(
           padding: EdgeInsets.only(right: i < filters.length - 1 ? 8 : 0),
           child: GestureDetector(
-            onTap: () => setState(() => _selectedMetric = i),
+            onTap: () {
+              setState(() => _selectedMetric = i);
+              _loadAnalyticsData();
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
@@ -252,13 +355,29 @@ class _AnalyticsReportScreenState extends State<AnalyticsReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(Icons.thermostat_outlined, primaryGreen, 'Temperature', '24°C'),
+        _buildSectionHeader(
+          Icons.thermostat_outlined,
+          primaryGreen,
+          'Temperature',
+          '${_stats.avgTemp.toStringAsFixed(1)}\u00B0C',
+        ),
         const SizedBox(height: 8),
         Container(
           height: 160,
           width: double.infinity,
           decoration: _chartDecoration(),
-          child: CustomPaint(painter: _TemperaturePainter()),
+          padding: const EdgeInsets.only(top: 8, bottom: 4),
+          child: Column(
+            children: [
+              Expanded(
+                child: CustomPaint(
+                  size: Size.infinite,
+                  painter: _TemperaturePainter(data: _tempData),
+                ),
+              ),
+              if (_chartLabels.isNotEmpty) _buildXAxisLabels(),
+            ],
+          ),
         ),
       ],
     );
@@ -268,13 +387,29 @@ class _AnalyticsReportScreenState extends State<AnalyticsReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(Icons.water_drop, primaryBlue, 'Humidity', '63%'),
+        _buildSectionHeader(
+          Icons.water_drop,
+          primaryBlue,
+          'Humidity',
+          '${_stats.avgHumidity.toStringAsFixed(1)}%',
+        ),
         const SizedBox(height: 8),
         Container(
           height: 200,
           width: double.infinity,
           decoration: _chartDecoration(),
-          child: CustomPaint(painter: _HumidityPainter()),
+          padding: const EdgeInsets.only(top: 8, bottom: 4),
+          child: Column(
+            children: [
+              Expanded(
+                child: CustomPaint(
+                  size: Size.infinite,
+                  painter: _HumidityPainter(data: _humData),
+                ),
+              ),
+              if (_chartLabels.isNotEmpty) _buildXAxisLabels(),
+            ],
+          ),
         ),
       ],
     );
@@ -284,15 +419,44 @@ class _AnalyticsReportScreenState extends State<AnalyticsReportScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(Icons.air, primaryBlue, 'Ventilation', '50%'),
+        _buildSectionHeader(
+          Icons.air,
+          primaryBlue,
+          'Ventilation',
+          '${_stats.avgFanSpeed.toStringAsFixed(1)}%',
+        ),
         const SizedBox(height: 8),
         Container(
           height: 160,
           width: double.infinity,
           decoration: _chartDecoration(),
-          child: CustomPaint(painter: _VentilationPainter()),
+          padding: const EdgeInsets.only(top: 8, bottom: 4),
+          child: Column(
+            children: [
+              Expanded(
+                child: CustomPaint(
+                  size: Size.infinite,
+                  painter: _VentilationPainter(data: _ventData),
+                ),
+              ),
+              if (_chartLabels.isNotEmpty) _buildXAxisLabels(),
+            ],
+          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildXAxisLabels() {
+    return SizedBox(
+      height: 18,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: _chartLabels.map((l) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Text(l, style: const TextStyle(fontSize: 8, color: textGrey)),
+        )).toList(),
+      ),
     );
   }
 
@@ -356,16 +520,22 @@ mixin _GridPainterBase {
 }
 
 class _TemperaturePainter extends CustomPainter with _GridPainterBase {
+  final List<double> data;
+  _TemperaturePainter({required this.data});
+
   @override
   void paint(Canvas canvas, Size size) {
     drawGrid(canvas, size);
-    final data = [10, 12, 15, 20, 23, 22, 21, 20, 18, 11, 18, 19];
+    if (data.isEmpty) return;
+    final maxVal = data.reduce((a, b) => a > b ? a : b);
+    final yMax = maxVal > 35 ? maxVal + 5 : 40.0;
     final path = Path();
     final chartWidth = size.width - 40;
-    final chartHeight = size.height - 20;
+    final chartHeight = size.height - 10;
+    final step = data.length > 1 ? chartWidth / (data.length - 1) : chartWidth;
     for (int i = 0; i < data.length; i++) {
-      final x = 30 + (i * chartWidth / (data.length - 1));
-      final y = chartHeight - (data[i] * chartHeight / 40);
+      final x = 30 + (i * step);
+      final y = chartHeight - (data[i].clamp(0, yMax) * chartHeight / yMax);
       if (i == 0) {
         path.moveTo(x, y);
       } else {
@@ -374,24 +544,29 @@ class _TemperaturePainter extends CustomPainter with _GridPainterBase {
     }
     canvas.drawPath(path, Paint()..color = primaryGreen..strokeWidth = 2..style = PaintingStyle.stroke);
   }
+
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _TemperaturePainter oldDelegate) => data != oldDelegate.data;
 }
 
 class _HumidityPainter extends CustomPainter with _GridPainterBase {
+  final List<double> data;
+  _HumidityPainter({required this.data});
+
   @override
   void paint(Canvas canvas, Size size) {
     drawGrid(canvas, size);
-    final data = [65, 45, 55, 75, 80, 72, 68, 60, 75, 70, 55, 80];
+    if (data.isEmpty) return;
     final area = Path();
     final line = Path();
     final chartWidth = size.width - 40;
-    final chartHeight = size.height - 20;
+    final chartHeight = size.height - 10;
+    final step = data.length > 1 ? chartWidth / (data.length - 1) : chartWidth;
 
     area.moveTo(30, chartHeight);
     for (int i = 0; i < data.length; i++) {
-      final x = 30 + (i * chartWidth / (data.length - 1));
-      final y = chartHeight - (data[i] * chartHeight / 100);
+      final x = 30 + (i * step);
+      final y = chartHeight - (data[i].clamp(0, 100) * chartHeight / 100);
       if (i == 0) {
         line.moveTo(x, y);
       } else {
@@ -399,48 +574,47 @@ class _HumidityPainter extends CustomPainter with _GridPainterBase {
       }
       area.lineTo(x, y);
     }
-    area.lineTo(30 + chartWidth, chartHeight);
+    area.lineTo(30 + (data.length - 1) * step, chartHeight);
     area.close();
 
     canvas.drawPath(
       area,
       Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF10B981), Color(0xFF10B981)],
-        ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
         ..color = const Color(0xFF10B981).withOpacity(0.18)
         ..style = PaintingStyle.fill,
     );
 
     canvas.drawPath(line, Paint()..color = const Color(0xFF10B981)..strokeWidth = 2.5..style = PaintingStyle.stroke);
 
-    // vertical line near SEP
-    final sepIndex = 8;
-    final sepX = 30 + (sepIndex * chartWidth / (data.length - 1));
-    canvas.drawLine(Offset(sepX, 0), Offset(sepX, chartHeight), Paint()..color = Colors.grey.withOpacity(0.4)..strokeWidth = 1);
-
-    // dot
-    final sepY = chartHeight - (data[sepIndex] * chartHeight / 100);
-    canvas.drawCircle(Offset(sepX, sepY), 5, Paint()..color = const Color(0xFF10B981));
-    canvas.drawCircle(Offset(sepX, sepY), 3, Paint()..color = Colors.white);
+    // Last point marker
+    if (data.isNotEmpty) {
+      final lastIdx = data.length - 1;
+      final lx = 30 + (lastIdx * step);
+      final ly = chartHeight - (data[lastIdx].clamp(0, 100) * chartHeight / 100);
+      canvas.drawCircle(Offset(lx, ly), 5, Paint()..color = const Color(0xFF10B981));
+      canvas.drawCircle(Offset(lx, ly), 3, Paint()..color = Colors.white);
+    }
   }
+
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _HumidityPainter oldDelegate) => data != oldDelegate.data;
 }
 
 class _VentilationPainter extends CustomPainter with _GridPainterBase {
+  final List<double> data;
+  _VentilationPainter({required this.data});
+
   @override
   void paint(Canvas canvas, Size size) {
     drawGrid(canvas, size);
-    final data = [20, 25, 22, 80, 50, 45, 38, 32, 35, 40, 70, 85];
+    if (data.isEmpty) return;
     final path = Path();
     final chartWidth = size.width - 40;
-    final chartHeight = size.height - 20;
+    final chartHeight = size.height - 10;
+    final step = data.length > 1 ? chartWidth / (data.length - 1) : chartWidth;
     for (int i = 0; i < data.length; i++) {
-      final x = 30 + (i * chartWidth / (data.length - 1));
-      final y = chartHeight - (data[i] * chartHeight / 100);
+      final x = 30 + (i * step);
+      final y = chartHeight - (data[i].clamp(0, 100) * chartHeight / 100);
       if (i == 0) {
         path.moveTo(x, y);
       } else {
@@ -449,6 +623,7 @@ class _VentilationPainter extends CustomPainter with _GridPainterBase {
     }
     canvas.drawPath(path, Paint()..color = primaryBlue..strokeWidth = 2..style = PaintingStyle.stroke);
   }
+
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _VentilationPainter oldDelegate) => data != oldDelegate.data;
 }
