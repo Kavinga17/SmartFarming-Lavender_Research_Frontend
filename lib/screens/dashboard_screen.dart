@@ -6,6 +6,7 @@ import 'climate_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
+import '../pages/MainMenu.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -86,7 +87,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       badge: '2 Scans Today',
                       badgeColor: primaryPurple,
                       actionText: 'Tap to Scan',
-                      onTap: () {},
+                      onTap: () {
+                        final uid = _auth.currentUser?.uid ?? '';
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => Home(userId: uid),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     // Soil Health Card

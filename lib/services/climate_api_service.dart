@@ -19,7 +19,12 @@ class ClimateApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['models_loaded'] == true;
+        // Support both old format {"models_loaded": true} and
+        // unified format {"status": "healthy", "climate_control": {"models_loaded": true}}
+        if (data['models_loaded'] == true) return true;
+        if (data['status'] == 'healthy') return true;
+        if (data['climate_control']?['models_loaded'] == true) return true;
+        return false;
       }
       return false;
     } catch (e) {

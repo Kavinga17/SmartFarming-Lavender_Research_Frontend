@@ -5,8 +5,8 @@ import 'package:http/http.dart' as http;
 import 'dart:typed_data';
 
 class ESP32HatDetectionPage extends StatefulWidget {
-  final String apiUrl = "http://10.0.2.2:5000"; // For emulator
-  // final String apiUrl = "http://192.168.1.100:5000"; // For physical device - replace with your PC's IP
+  //final String apiUrl = "http://10.0.2.2:5000"; // For emulator
+  final String apiUrl = "http://192.168.0.100:5000"; // Unified backend on port 5000
 
   @override
   _ESP32HatDetectionPageState createState() => _ESP32HatDetectionPageState();
@@ -75,7 +75,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
 
     try {
       final response = await http.post(
-        Uri.parse('${widget.apiUrl}/connect'),
+        Uri.parse('${widget.apiUrl}/insect/connect'),
       ).timeout(Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -106,7 +106,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
   Future<void> _disconnect() async {
     try {
       await http.post(
-        Uri.parse('${widget.apiUrl}/disconnect'),
+        Uri.parse('${widget.apiUrl}/insect/disconnect'),
       );
     } catch (e) {
       print('Disconnect error: $e');
@@ -125,7 +125,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
 
       try {
         final response = await http.get(
-          Uri.parse('${widget.apiUrl}/stream'),
+          Uri.parse('${widget.apiUrl}/insect/stream'),
         ).timeout(Duration(seconds: 2));
 
         if (response.statusCode == 200) {
@@ -154,7 +154,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
   Future<void> _toggleLed() async {
     try {
       final response = await http.post(
-        Uri.parse('${widget.apiUrl}/led/${_detections['led_active'] ? 'off' : 'on'}'),
+        Uri.parse('${widget.apiUrl}/insect/led/${_detections['led_active'] ? 'off' : 'on'}'),
       );
 
       if (response.statusCode == 200) {
@@ -176,7 +176,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
       );
 
       final response = await http.post(
-        Uri.parse('${widget.apiUrl}/led/test'),
+        Uri.parse('${widget.apiUrl}/insect/led/test'),
       );
 
       if (response.statusCode == 200) {
@@ -194,7 +194,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
   Future<void> _saveSnapshot() async {
     try {
       final response = await http.post(
-        Uri.parse('${widget.apiUrl}/snapshot'),
+        Uri.parse('${widget.apiUrl}/insect/snapshot'),
       );
 
       if (response.statusCode == 200) {
@@ -212,7 +212,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
   Future<void> _updateConfig() async {
     try {
       await http.post(
-        Uri.parse('${widget.apiUrl}/config'),
+        Uri.parse('${widget.apiUrl}/insect/config'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({
           'confidence': _confidenceThreshold,

@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart' as firebase_storage;
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 
@@ -35,36 +34,24 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
       final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
 
       if (pickedFile != null) {
-        File file = File(pickedFile.path);
-
-        firebase_storage.Reference storageRef = firebase_storage.FirebaseStorage.instance
-            .ref()
-            .child('lavender_photos/${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}');
-
-        await storageRef.putFile(file);
-
-
-        String downloadURL = await storageRef.getDownloadURL();
-
-
         setState(() {
-          _photoPath = downloadURL;
+          _photoPath = pickedFile.path;
         });
 
-        return downloadURL;
+        return pickedFile.path;
       }
 
       return '';
     } catch (e) {
-      print('Error picking and uploading photo: $e');
+      print('Error picking photo: $e');
       return '';
     }
   }
 
-  Future<void> _makePredictionRequest(String imageUrl) async {
+  Future<void> _makePredictionRequest(String filePath) async {
     try {
-      if (imageUrl.isEmpty) {
-        print('Image URL is empty');
+      if (filePath.isEmpty) {
+        print('File path is empty');
         return;
       }
 
@@ -73,14 +60,14 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
         _errorText = "";
       });
 
+      // Read the file and base64-encode it for the backend
+      final bytes = await File(filePath).readAsBytes();
+      final imageBase64 = base64Encode(bytes);
+
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:5000/predict'),
-        // Uri.parse('http://localhost:5000/predict'),
-        // Uri.parse('http://YOUR_ACTUAL_IP:5000/predict'),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode({'image_url': imageUrl}),
+        Uri.parse('http://192.168.0.100:5000/diseasPredict'), // Unified backend on port 5000
+        headers: {'Content-Type': 'application/json; charset=UTF-8'},
+        body: jsonEncode({'image_base64': imageBase64}),
       );
 
       if (response.statusCode == 200) {
@@ -90,9 +77,8 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
         setState(() {
 
           _detections = data['detections'] ?? [];
-          _summary = data['summary'] ?? {};
+          _summary = data['summary'] ?? {};           // ✅ FIX: Now populated from Flask summary block
           _annotatedImageBase64 = data['annotated_image'] ?? '';
-
 
           if (_detections.isNotEmpty) {
             // Check if any disease detected
@@ -241,7 +227,7 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
             ),
           ],
           image: DecorationImage(
-            image: NetworkImage(_photoPath),
+            image: FileImage(File(_photoPath)),
             fit: BoxFit.cover,
           ),
         ),
