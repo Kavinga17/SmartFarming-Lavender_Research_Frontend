@@ -377,79 +377,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildLavenderImage(bool isSmallScreen) {
-    return Container(
-      height: isSmallScreen ? 160 : 250,
-      width: isSmallScreen ? 160 : 250,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Stack of flower icons to simulate lavender
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              // Main lavender representation
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Lavender flowers
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Transform.rotate(
-                        angle: -0.3,
-                        child: _buildLavenderStalk(isSmallScreen ? 60 : 100),
-                      ),
-                      _buildLavenderStalk(isSmallScreen ? 80 : 120),
-                      Transform.rotate(
-                        angle: 0.3,
-                        child: _buildLavenderStalk(isSmallScreen ? 70 : 110),
-                      ),
-                    ],
-                  ),
-                  // Leaves
-                  Icon(
-                    Icons.eco,
-                    size: isSmallScreen ? 40 : 60,
-                    color: const Color(0xFF4CAF50),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLavenderStalk(double height) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Flower spikes
-        for (int i = 0; i < 5; i++)
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 1),
-            child: Icon(
-              Icons.water_drop,
-              size: height / 8,
-              color: Color.lerp(
-                const Color(0xFF9C27B0),
-                const Color(0xFF7B1FA2),
-                i / 5,
-              ),
-            ),
-          ),
-        // Stem
-        Container(
-          width: 3,
-          height: height * 0.3,
-          decoration: BoxDecoration(
-            color: const Color(0xFF4CAF50),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-      ],
+    return Image.asset(
+      'assets/images/Loging&Signup.png',
+      height: isSmallScreen ? 170 : 260,
+      fit: BoxFit.contain,
     );
   }
 
@@ -742,20 +673,29 @@ class _LoginScreenState extends State<LoginScreen> {
             fontSize: 14,
           ),
         ),
-        GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => const RegisterScreen()),
-            );
-          },
-          child: Text(
-            'Sign up',
-            style: TextStyle(
-              color: Colors.teal[400],
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(4),
+            splashColor: Colors.teal.withOpacity(0.15),
+            highlightColor: Colors.teal.withOpacity(0.08),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const RegisterScreen()),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Text(
+                'Sign up',
+                style: TextStyle(
+                  color: Colors.teal[400],
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ),

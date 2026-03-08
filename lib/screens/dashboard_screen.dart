@@ -6,6 +6,7 @@ import 'climate_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
+import 'activity_history_screen.dart';
 import '../pages/MainMenu.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -22,6 +23,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String? _profileImageUrl;
 
+  // Recent activities from Firestore
+  List<ActivityItem> _recentActivities = [];
+  bool _isLoadingActivities = true;
+
   // Colors
   static const Color backgroundColor = Color(0xFFF8F9FA);
   static const Color primaryPurple = Color(0xFF8B5CF6);
@@ -36,6 +41,117 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _loadUserProfile();
+    _loadRecentActivities();
+  }
+
+  Future<void> _loadRecentActivities() async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      final activities = <ActivityItem>[];
+
+      // Load climate activities
+      try {
+        Query<Map<String, dynamic>> climateQuery = _firestore
+            .collection('climate_readings')
+            .orderBy('timestamp', descending: true)
+            .limit(10);
+        if (uid != null) {
+          climateQuery = _firestore
+              .collection('climate_readings')
+              .where('user_id', isEqualTo: uid)
+              .orderBy('timestamp', descending: true)
+              .limit(10);
+        }
+        final climateSnap = await climateQuery.get();
+        for (final doc in climateSnap.docs) {
+          final d = doc.data();
+          final ts = d['timestamp'];
+          DateTime? time;
+          if (ts is Timestamp) time = ts.toDate();
+          if (time == null) continue;
+
+          final airTemp = (d['air_temp'] as num?)?.toDouble() ?? 0.0;
+          final humidity = (d['humidity'] as num?)?.toDouble() ?? 0.0;
+          final soilTemp = (d['soil_temp'] as num?)?.toDouble() ?? 0.0;
+          final fanSpeed = (d['effective_fan_speed'] as num?)?.toDouble() ??
+              (d['fan_speed'] as num?)?.toDouble() ?? 0.0;
+          final fanMode = d['fan_mode'] as String? ?? 'auto';
+          final humLevel = (d['effective_humidifier_level'] as num?)?.toInt() ??
+              (d['humidifier_mode'] as num?)?.toInt() ?? 0;
+          final humLabels = ['Off', 'Low', 'Medium', 'High'];
+          final humLabel = humLevel >= 0 && humLevel < humLabels.length
+              ? humLabels[humLevel]
+              : 'Off';
+
+          activities.add(ActivityItem(
+            icon: Icons.thermostat_outlined,
+            iconBgColor: const Color(0xFFFEF3C7),
+            iconColor: const Color(0xFFF59E0B),
+            title: 'Temp: ${airTemp.toStringAsFixed(1)}°C | Humidity: ${humidity.toStringAsFixed(1)}%',
+            subtitle: 'Fan: $fanMode ${fanSpeed.toStringAsFixed(0)}% · Humidifier: $humLabel · Soil: ${soilTemp.toStringAsFixed(1)}°C',
+            time: time,
+            source: 'climate',
+            rawData: d,
+          ));
+        }
+      } catch (e) {
+        print('⚠️ Dashboard: Failed to load climate activities: $e');
+      }
+
+      // Load disease activities
+      try {
+        Query<Map<String, dynamic>> diseaseQuery = _firestore
+            .collection('lavender_detections')
+            .orderBy('timestamp', descending: true)
+            .limit(10);
+        if (uid != null) {
+          diseaseQuery = _firestore
+              .collection('lavender_detections')
+              .where('user_id', isEqualTo: uid)
+              .orderBy('timestamp', descending: true)
+              .limit(10);
+        }
+        final diseaseSnap = await diseaseQuery.get();
+        for (final doc in diseaseSnap.docs) {
+          final d = doc.data();
+          final ts = d['timestamp'] ?? d['date_time'];
+          DateTime? time;
+          if (ts is Timestamp) time = ts.toDate();
+          if (time == null) continue;
+
+          final status = d['overall_status'] as String? ?? 'Unknown';
+          final diseaseCount = (d['disease_count'] as num?)?.toInt() ?? 0;
+          final healthyCount = (d['healthy_count'] as num?)?.toInt() ?? 0;
+          final totalCount = (d['detection_count'] as num?)?.toInt() ?? 0;
+          final hasDisease = d['has_disease'] == true;
+
+          activities.add(ActivityItem(
+            icon: hasDisease ? Icons.warning_amber : Icons.check_circle_outline,
+            iconBgColor: hasDisease ? const Color(0xFFFEE2E2) : const Color(0xFFDCFCE7),
+            iconColor: hasDisease ? const Color(0xFFEF4444) : primaryGreen,
+            title: status,
+            subtitle: 'Detections: $totalCount (Disease: $diseaseCount, Healthy: $healthyCount)',
+            time: time,
+            source: 'disease',
+            rawData: d,
+          ));
+        }
+      } catch (e) {
+        print('⚠️ Dashboard: Failed to load disease activities: $e');
+      }
+
+      activities.sort((a, b) => b.time.compareTo(a.time));
+
+      if (mounted) {
+        setState(() {
+          _recentActivities = activities;
+          _isLoadingActivities = false;
+        });
+      }
+    } catch (e) {
+      print('⚠️ Dashboard: Failed to load activities: $e');
+      if (mounted) setState(() => _isLoadingActivities = false);
+    }
   }
 
   Future<void> _loadUserProfile() async {
@@ -70,8 +186,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _buildTabNavigation(),
             // Main Content
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await Future.wait([
+                    _loadUserProfile(),
+                    _loadRecentActivities(),
+                  ]);
+                },
+                color: primaryGreen,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
                     // Lavender Plant Health Card
@@ -151,6 +276,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
               ),
+              ),
             ),
           ],
         ),
@@ -207,20 +333,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ).then((_) => _loadUserProfile());
                     },
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                      ).then((_) => _loadUserProfile());
-                    },
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: primaryOrange, width: 2),
-                      ),
+                  Material(
+                    color: Colors.transparent,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      splashColor: primaryOrange.withOpacity(0.2),
+                      highlightColor: primaryOrange.withOpacity(0.1),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                        ).then((_) => _loadUserProfile());
+                      },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: primaryOrange, width: 2),
+                        ),
                       child: ClipOval(
                         child: _profileImageUrl != null
                             ? Image.network(
@@ -241,6 +373,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                       ),
                     ),
+                  ),
                   ),
                 ],
               ),
@@ -295,40 +428,45 @@ class _DashboardScreenState extends State<DashboardScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: List.generate(tabs.length, (index) {
           final isSelected = _selectedTabIndex == index;
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _selectedTabIndex = index;
-              });
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: isSelected ? primaryGreen : Colors.transparent,
-                    width: 2,
-                  ),
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    tabs[index]['icon'] as IconData,
-                    color: isSelected ? primaryGreen : textGrey,
-                    size: 22,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    tabs[index]['label'] as String,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isSelected ? primaryGreen : textGrey,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          return Material(
+            color: Colors.transparent,
+            child: InkWell(
+              splashColor: primaryGreen.withOpacity(0.1),
+              highlightColor: primaryGreen.withOpacity(0.05),
+              onTap: () {
+                setState(() {
+                  _selectedTabIndex = index;
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: isSelected ? primaryGreen : Colors.transparent,
+                      width: 2,
                     ),
                   ),
-                ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      tabs[index]['icon'] as IconData,
+                      color: isSelected ? primaryGreen : textGrey,
+                      size: 22,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      tabs[index]['label'] as String,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isSelected ? primaryGreen : textGrey,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -367,45 +505,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       child: Row(
         children: [
-          // Lavender Image Placeholder
-          Container(
-            width: 80,
-            height: 100,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Simulated lavender with icons
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Transform.rotate(
-                              angle: -0.3,
-                              child: _buildMiniLavenderStalk(40),
-                            ),
-                            _buildMiniLavenderStalk(55),
-                            Transform.rotate(
-                              angle: 0.3,
-                              child: _buildMiniLavenderStalk(45),
-                            ),
-                          ],
-                        ),
-                        Icon(
-                          Icons.eco,
-                          size: 24,
-                          color: Colors.green[600],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
+          // Lavender Image
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset(
+              'assets/images/lvd4.png',
+              width: 80,
+              height: 100,
+              fit: BoxFit.cover,
             ),
           ),
           const SizedBox(width: 16),
@@ -487,35 +594,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMiniLavenderStalk(double height) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (int i = 0; i < 4; i++)
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 1),
-            child: Icon(
-              Icons.water_drop,
-              size: height / 6,
-              color: Color.lerp(
-                const Color(0xFF9C27B0),
-                const Color(0xFF7B1FA2),
-                i / 4,
-              ),
-            ),
-          ),
-        Container(
-          width: 2,
-          height: height * 0.25,
-          decoration: BoxDecoration(
-            color: Colors.green[600],
-            borderRadius: BorderRadius.circular(1),
-          ),
-        ),
-      ],
     );
   }
 
@@ -606,26 +684,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           // Action
-          GestureDetector(
-            onTap: onTap,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  actionText,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: primaryOrange,
-                  ),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              splashColor: primaryOrange.withOpacity(0.15),
+              highlightColor: primaryOrange.withOpacity(0.08),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      actionText,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: primaryOrange,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.arrow_forward,
+                      color: primaryOrange,
+                      size: 16,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 4),
-                const Icon(
-                  Icons.arrow_forward,
-                  color: primaryOrange,
-                  size: 16,
-                ),
-              ],
+              ),
             ),
           ),
         ],
@@ -685,7 +772,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               icon: Icons.thermostat_outlined,
               iconColor: primaryOrange,
               value: '24°C',
-              label: 'Current\nTemp',
+              label: 'Temp',
             ),
           ),
           Flexible(
@@ -766,14 +853,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 color: textDark,
               ),
             ),
-            TextButton(
-              onPressed: () {},
-              child: const Text(
-                'View All',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: primaryGreen,
-                  fontWeight: FontWeight.w600,
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                splashColor: primaryGreen.withOpacity(0.15),
+                highlightColor: primaryGreen.withOpacity(0.08),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ActivityHistoryScreen(),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    children: [
+                      const Text(
+                        'View All',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: primaryGreen,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: primaryGreen.withOpacity(0.3)),
+                        ),
+                        child: const Icon(
+                          Icons.arrow_forward,
+                          size: 14,
+                          color: primaryGreen,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -781,36 +902,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         const SizedBox(height: 8),
         // Activity Items
-        _buildActivityItem(
-          icon: Icons.document_scanner_outlined,
-          iconBgColor: const Color(0xFFE0F2FE),
-          iconColor: const Color(0xFF0EA5E9),
-          title: 'Disease scan completed',
-          time: _getRelativeTime(5),
-        ),
-        _buildActivityItem(
-          icon: Icons.water_drop_outlined,
-          iconBgColor: const Color(0xFFDCFCE7),
-          iconColor: primaryGreen,
-          title: 'Irrigation cycle started',
-          time: _getRelativeTime(25),
-        ),
-        _buildActivityItem(
-          icon: Icons.thermostat_outlined,
-          iconBgColor: const Color(0xFFFEE2E2),
-          iconColor: const Color(0xFFEF4444),
-          title: 'Temp adjusted to 24°C',
-          time: _getRelativeTime(60),
-        ),
-        _buildActivityItem(
-          icon: Icons.wb_sunny_outlined,
-          iconBgColor: const Color(0xFFFEF3C7),
-          iconColor: primaryYellow,
-          title: 'Light intensity increased',
-          time: _getRelativeTime(120),
-        ),
+        if (_isLoadingActivities)
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          )
+        else if (_recentActivities.isNotEmpty)
+          ..._recentActivities.take(6).map((activity) => _buildActivityItem(
+            icon: activity.icon,
+            iconBgColor: activity.iconBgColor,
+            iconColor: activity.iconColor,
+            title: activity.title,
+            subtitle: activity.subtitle,
+            time: _formatActivityTimeAgo(activity.time),
+            onTap: () => showActivityDetailSheet(
+              context,
+              icon: activity.icon,
+              iconBgColor: activity.iconBgColor,
+              iconColor: activity.iconColor,
+              title: activity.title,
+              subtitle: activity.subtitle,
+              time: activity.time,
+              source: activity.source,
+              rawData: activity.rawData,
+            ),
+          ))
+        else ...[  
+          _buildActivityItem(
+            icon: Icons.info_outline,
+            iconBgColor: const Color(0xFFF3F4F6),
+            iconColor: textGrey,
+            title: 'No recent activities yet',
+            time: 'Start using the app to see activity',
+          ),
+        ],
       ],
     );
+  }
+
+  String _formatActivityTimeAgo(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inSeconds < 60) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return DateFormat('MMM d').format(time);
   }
 
   Widget _buildActivityItem({
@@ -819,76 +955,103 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required Color iconColor,
     required String title,
     required String time,
+    String subtitle = '',
+    VoidCallback? onTap,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white,
-            Color(0xFFFCFCFC),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: iconColor.withOpacity(0.12),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: textDark,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  time,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: textGrey,
-                  ),
-                ),
+        splashColor: iconColor.withOpacity(0.1),
+        highlightColor: iconColor.withOpacity(0.05),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                Color(0xFFFCFCFC),
               ],
             ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: iconColor.withOpacity(0.12),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+                spreadRadius: 0,
+              ),
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.08),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+                spreadRadius: 0,
+              ),
+            ],
           ),
-          Icon(
-            Icons.chevron_right,
-            color: Colors.grey.shade300,
-            size: 20,
-          ),
-        ],
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: textDark,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (subtitle.isNotEmpty) ...[                  
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: textGrey,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 2),
+                  Text(
+                    time,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: textGrey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: Colors.grey.shade300,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+      ),
       ),
     );
   }
@@ -904,26 +1067,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: Column(
           children: [
             // Drawer Header with user info
-            GestureDetector(
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
-                ).then((_) => _loadUserProfile());
-              },
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      primaryPurple,
-                      primaryPurple.withOpacity(0.8),
-                    ],
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                splashColor: Colors.white.withOpacity(0.15),
+                highlightColor: Colors.white.withOpacity(0.08),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                  ).then((_) => _loadUserProfile());
+                },
+                child: Ink(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        primaryPurple,
+                        primaryPurple.withOpacity(0.8),
+                      ],
+                    ),
                   ),
-                ),
                 padding: EdgeInsets.only(
                   top: MediaQuery.of(context).padding.top + 20,
                   bottom: 20,
@@ -989,6 +1156,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ],
                 ),
               ),
+            ),
             ),
 
             // Menu Items

@@ -393,13 +393,43 @@ class _HumidityModeScreenState extends State<HumidityModeScreen> {
   // -- Mode Buttons (Off / Manual / Auto) ---------------------------------
 
   Widget _buildModeButtons() {
-    return Row(
+    return Column(
       children: [
-        _buildModeButton(0, Icons.power_settings_new, 'Off'),
-        const SizedBox(width: 8),
-        _buildModeButton(1, Icons.pan_tool, 'Manual'),
-        const SizedBox(width: 8),
-        _buildModeButton(2, Icons.auto_awesome, 'Auto'),
+        Row(
+          children: [
+            _buildModeButton(0, Icons.power_settings_new, 'Off'),
+            const SizedBox(width: 8),
+            _buildModeButton(1, Icons.pan_tool, 'Manual'),
+            const SizedBox(width: 8),
+            _buildModeButton(2, Icons.auto_awesome, 'Auto'),
+          ],
+        ),
+        if (_isSendingCommand)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(primaryPurple),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Sending command...',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textGrey,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -407,47 +437,47 @@ class _HumidityModeScreenState extends State<HumidityModeScreen> {
   Widget _buildModeButton(int mode, IconData icon, String label) {
     final isSelected = _selectedMode == mode;
     return Expanded(
-      child: GestureDetector(
-        onTap: _isSendingCommand ? null : () => _setHumidifierMode(mode),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          decoration: BoxDecoration(
-            gradient: isSelected
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: mode == 0
-                        ? [const Color(0xFFEF4444), const Color(0xFFDC2626)]
-                        : mode == 1
-                            ? [const Color(0xFFF59E0B), const Color(0xFFD97706)]
-                            : [const Color(0xFF9D6FFF), const Color(0xFF7C3AED)],
-                  )
-                : const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Colors.white, Color(0xFFF5F5F5)],
-                  ),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(
-              color: isSelected ? Colors.transparent : Colors.grey.shade300,
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: isSelected
-                    ? (mode == 0
-                            ? const Color(0xFFEF4444)
-                            : mode == 1
-                                ? const Color(0xFFF59E0B)
-                                : primaryPurple)
-                        .withOpacity(0.3)
-                    : Colors.grey.withOpacity(0.15),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
+      child: Stack(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            decoration: BoxDecoration(
+              gradient: isSelected
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: mode == 0
+                          ? [const Color(0xFFEF4444), const Color(0xFFDC2626)]
+                          : mode == 1
+                              ? [const Color(0xFFF59E0B), const Color(0xFFD97706)]
+                              : [const Color(0xFF9D6FFF), const Color(0xFF7C3AED)],
+                    )
+                  : const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Colors.white, Color(0xFFF5F5F5)],
+                    ),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: isSelected ? Colors.transparent : Colors.grey.shade300,
+                width: 1,
               ),
-            ],
-          ),
+              boxShadow: [
+                BoxShadow(
+                  color: isSelected
+                      ? (mode == 0
+                              ? const Color(0xFFEF4444)
+                              : mode == 1
+                                  ? const Color(0xFFF59E0B)
+                                  : primaryPurple)
+                          .withOpacity(0.3)
+                      : Colors.grey.withOpacity(0.15),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -467,6 +497,18 @@ class _HumidityModeScreenState extends State<HumidityModeScreen> {
             ],
           ),
         ),
+          Positioned.fill(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(30),
+                splashColor: Colors.white.withOpacity(0.2),
+                highlightColor: Colors.white.withOpacity(0.1),
+                onTap: _isSendingCommand ? null : () => _setHumidifierMode(mode),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -667,47 +709,44 @@ class _HumidityModeScreenState extends State<HumidityModeScreen> {
   Widget _buildLevelButton(int level, String label) {
     final isSelected = _manualLevel == level;
     return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _manualLevel = level);
-          _sendManualLevel(level);
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            gradient: isSelected
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: level == 0
-                        ? [Colors.grey.shade400, Colors.grey.shade500]
-                        : level == 1
-                            ? [const Color(0xFF60A5FA), const Color(0xFF3B82F6)]
-                            : level == 2
-                                ? [const Color(0xFF34D399), const Color(0xFF10B981)]
-                                : [const Color(0xFFF59E0B), const Color(0xFFD97706)],
-                  )
-                : const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Colors.white, Color(0xFFF5F5F5)],
-                  ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isSelected ? Colors.transparent : Colors.grey.shade300,
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: isSelected
-                    ? primaryBlue.withOpacity(0.25)
-                    : Colors.grey.withOpacity(0.1),
-                blurRadius: 6,
-                offset: const Offset(0, 3),
+      child: Stack(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              gradient: isSelected
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: level == 0
+                          ? [Colors.grey.shade400, Colors.grey.shade500]
+                          : level == 1
+                              ? [const Color(0xFF60A5FA), const Color(0xFF3B82F6)]
+                              : level == 2
+                                  ? [const Color(0xFF34D399), const Color(0xFF10B981)]
+                                  : [const Color(0xFFF59E0B), const Color(0xFFD97706)],
+                    )
+                  : const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Colors.white, Color(0xFFF5F5F5)],
+                    ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isSelected ? Colors.transparent : Colors.grey.shade300,
+                width: 1,
               ),
-            ],
-          ),
+              boxShadow: [
+                BoxShadow(
+                  color: isSelected
+                      ? primaryBlue.withOpacity(0.25)
+                      : Colors.grey.withOpacity(0.1),
+                  blurRadius: 6,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
           child: Center(
             child: Text(
               label,
@@ -719,6 +758,21 @@ class _HumidityModeScreenState extends State<HumidityModeScreen> {
             ),
           ),
         ),
+          Positioned.fill(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(20),
+                splashColor: Colors.white.withOpacity(0.2),
+                highlightColor: Colors.white.withOpacity(0.1),
+                onTap: () {
+                  setState(() => _manualLevel = level);
+                  _sendManualLevel(level);
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -859,14 +913,20 @@ class _HumidityModeScreenState extends State<HumidityModeScreen> {
           child: Row(
             children: List.generate(metrics.length, (index) {
               final isSelected = _selectedMetric == index;
-              return GestureDetector(
-                onTap: () {
-                  setState(() => _selectedMetric = index);
-                  _loadHumidityChartData();
-                },
-                child: Container(
-                  margin: EdgeInsets.only(right: index < metrics.length - 1 ? 8 : 0),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              return Padding(
+                padding: EdgeInsets.only(right: index < metrics.length - 1 ? 8 : 0),
+                child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  splashColor: primaryPurple.withOpacity(0.15),
+                  highlightColor: primaryPurple.withOpacity(0.08),
+                  onTap: () {
+                    setState(() => _selectedMetric = index);
+                    _loadHumidityChartData();
+                  },
+                  child: Ink(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     gradient: isSelected
                         ? const LinearGradient(
@@ -905,6 +965,8 @@ class _HumidityModeScreenState extends State<HumidityModeScreen> {
                     ),
                   ),
                 ),
+              ),
+              ),
               );
             }),
           ),

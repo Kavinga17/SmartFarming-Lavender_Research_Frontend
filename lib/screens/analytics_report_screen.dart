@@ -283,13 +283,18 @@ class _AnalyticsReportScreenState extends State<AnalyticsReportScreen> {
         final selected = _selectedMetric == i;
         return Padding(
           padding: EdgeInsets.only(right: i < filters.length - 1 ? 8 : 0),
-          child: GestureDetector(
-            onTap: () {
-              setState(() => _selectedMetric = i);
-              _loadAnalyticsData();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(24),
+              splashColor: primaryPurple.withOpacity(0.15),
+              highlightColor: primaryPurple.withOpacity(0.08),
+              onTap: () {
+                setState(() => _selectedMetric = i);
+                _loadAnalyticsData();
+              },
+              child: Ink(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 gradient: selected
                     ? const LinearGradient(
@@ -321,6 +326,7 @@ class _AnalyticsReportScreenState extends State<AnalyticsReportScreen> {
                 ),
               ),
             ),
+          ),
           ),
         );
       }),

@@ -357,13 +357,43 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
   }
 
   Widget _buildModeButtons() {
-    return Row(
+    return Column(
       children: [
-        _buildModeButton(0, Icons.power_settings_new, 'Off'),
-        const SizedBox(width: 8),
-        _buildModeButton(1, Icons.pan_tool, 'Manual'),
-        const SizedBox(width: 8),
-        _buildModeButton(2, Icons.auto_awesome, 'Auto'),
+        Row(
+          children: [
+            _buildModeButton(0, Icons.power_settings_new, 'Off'),
+            const SizedBox(width: 8),
+            _buildModeButton(1, Icons.pan_tool, 'Manual'),
+            const SizedBox(width: 8),
+            _buildModeButton(2, Icons.auto_awesome, 'Auto'),
+          ],
+        ),
+        if (_isSendingCommand)
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(primaryPurple),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Sending command...',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: textGrey,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -371,47 +401,47 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
   Widget _buildModeButton(int mode, IconData icon, String label) {
     final isSelected = _selectedMode == mode;
     return Expanded(
-      child: GestureDetector(
-        onTap: _isSendingCommand ? null : () => _setFanMode(mode),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          decoration: BoxDecoration(
-            gradient: isSelected
-                ? LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: mode == 0
-                        ? [const Color(0xFFEF4444), const Color(0xFFDC2626)]
-                        : mode == 1
-                            ? [const Color(0xFFF59E0B), const Color(0xFFD97706)]
-                            : [const Color(0xFF9D6FFF), const Color(0xFF7C3AED)],
-                  )
-                : const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Colors.white, Color(0xFFF5F5F5)],
-                  ),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(
-              color: isSelected ? Colors.transparent : Colors.grey.shade300,
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: isSelected
-                    ? (mode == 0
-                            ? const Color(0xFFEF4444)
-                            : mode == 1
-                                ? const Color(0xFFF59E0B)
-                                : primaryPurple)
-                        .withOpacity(0.3)
-                    : Colors.grey.withOpacity(0.15),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
+      child: Stack(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            decoration: BoxDecoration(
+              gradient: isSelected
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: mode == 0
+                          ? [const Color(0xFFEF4444), const Color(0xFFDC2626)]
+                          : mode == 1
+                              ? [const Color(0xFFF59E0B), const Color(0xFFD97706)]
+                              : [const Color(0xFF9D6FFF), const Color(0xFF7C3AED)],
+                    )
+                  : const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Colors.white, Color(0xFFF5F5F5)],
+                    ),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: isSelected ? Colors.transparent : Colors.grey.shade300,
+                width: 1,
               ),
-            ],
-          ),
+              boxShadow: [
+                BoxShadow(
+                  color: isSelected
+                      ? (mode == 0
+                              ? const Color(0xFFEF4444)
+                              : mode == 1
+                                  ? const Color(0xFFF59E0B)
+                                  : primaryPurple)
+                          .withOpacity(0.3)
+                      : Colors.grey.withOpacity(0.15),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -428,6 +458,18 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
             ],
           ),
         ),
+          Positioned.fill(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(30),
+                splashColor: Colors.white.withOpacity(0.2),
+                highlightColor: Colors.white.withOpacity(0.1),
+                onTap: _isSendingCommand ? null : () => _setFanMode(mode),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -838,14 +880,20 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
           child: Row(
             children: List.generate(metrics.length, (index) {
               final isSelected = _selectedMetric == index;
-              return GestureDetector(
-                onTap: () {
-                  setState(() => _selectedMetric = index);
-                  _loadVentilationChartData();
-                },
-                child: Container(
-                  margin: EdgeInsets.only(right: index < metrics.length - 1 ? 8 : 0),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              return Padding(
+                padding: EdgeInsets.only(right: index < metrics.length - 1 ? 8 : 0),
+                child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  splashColor: primaryPurple.withOpacity(0.15),
+                  highlightColor: primaryPurple.withOpacity(0.08),
+                  onTap: () {
+                    setState(() => _selectedMetric = index);
+                    _loadVentilationChartData();
+                  },
+                  child: Ink(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
                     gradient: isSelected
                         ? const LinearGradient(
@@ -884,6 +932,8 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
                     ),
                   ),
                 ),
+              ),
+              ),
               );
             }),
           ),

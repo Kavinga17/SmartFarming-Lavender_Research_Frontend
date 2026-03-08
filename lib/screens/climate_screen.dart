@@ -5,6 +5,7 @@ import 'dart:async';
 import 'venting_mode_screen.dart';
 import 'analytics_report_screen.dart';
 import 'humidity_mode_screen.dart';
+import 'activity_history_screen.dart';
 import '../services/climate_api_service.dart';
 import '../services/climate_data_service.dart';
 import '../services/sensor_data_service.dart';
@@ -259,6 +260,17 @@ class _ClimateScreenState extends State<ClimateScreen> {
       final recent = readings.reversed.take(10).toList();
       final activities = <_ActivityEntry>[];
       for (final r in recent) {
+        final rawData = <String, dynamic>{
+          'air_temp': r.airTemp,
+          'humidity': r.humidity,
+          'soil_temp': r.soilTemp,
+          'fan_speed': r.fanSpeed,
+          'effective_fan_speed': r.fanSpeed,
+          'fan_mode': r.fanMode,
+          'humidifier_mode': r.humidifierMode,
+          'effective_humidifier_level': r.effectiveHumidifierLevel,
+          'humidifier_control_mode': r.humidifierControlMode,
+        };
         // Fan change entry
         activities.add(_ActivityEntry(
           icon: Icons.air,
@@ -266,6 +278,7 @@ class _ClimateScreenState extends State<ClimateScreen> {
           iconColor: const Color(0xFFEC4899),
           title: 'Fan ${r.fanMode} - ${r.fanSpeed.toStringAsFixed(0)}%',
           time: r.timestamp ?? DateTime.now(),
+          rawData: rawData,
         ));
         // Temperature entry
         activities.add(_ActivityEntry(
@@ -274,6 +287,7 @@ class _ClimateScreenState extends State<ClimateScreen> {
           iconColor: const Color(0xFFF59E0B),
           title: 'Temp: ${r.airTemp.toStringAsFixed(1)}°C | Soil: ${r.soilTemp.toStringAsFixed(1)}°C',
           time: r.timestamp ?? DateTime.now(),
+          rawData: rawData,
         ));
         // Humidity entry
         activities.add(_ActivityEntry(
@@ -282,6 +296,7 @@ class _ClimateScreenState extends State<ClimateScreen> {
           iconColor: const Color(0xFF3B82F6),
           title: 'Humidity: ${r.humidity.toStringAsFixed(1)}%',
           time: r.timestamp ?? DateTime.now(),
+          rawData: rawData,
         ));
       }
       if (mounted) {
@@ -420,15 +435,21 @@ class _ClimateScreenState extends State<ClimateScreen> {
               ],
             ),
           ),
-          GestureDetector(
-            onTap: _checkServerConnection,
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: primaryOrange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              splashColor: primaryOrange.withOpacity(0.2),
+              highlightColor: primaryOrange.withOpacity(0.1),
+              onTap: _checkServerConnection,
+              child: Ink(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: primaryOrange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.refresh, color: primaryOrange, size: 18),
               ),
-              child: Icon(Icons.refresh, color: primaryOrange, size: 18),
             ),
           ),
         ],
@@ -774,7 +795,7 @@ class _ClimateScreenState extends State<ClimateScreen> {
     final fanMode = _prediction?.fanMode ?? 'auto';
     final effectiveSpeed = _prediction?.effectiveFanSpeed ?? 0;
     final fanOn = effectiveSpeed > 0;
-    final humMode = _prediction?.humidifierMode ?? 0;
+    final humMode = _prediction?.effectiveHumidifierLevel ?? 0;
     final humOn = humMode > 0;
 
     // Fan subtitle based on mode
@@ -911,38 +932,43 @@ class _ClimateScreenState extends State<ClimateScreen> {
     return Row(
       children: [
         Expanded(
-          child: GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => VentingModeScreen(
-                  initialFanLevel: _prediction?.fanLevel,
-                  currentAirTemp: _airTemp,
-                  currentHumidity: _humidity,
-                  currentSoilTemp: _soilTemp,
-                  targetTemp: _targetTemp,
-                  targetHumidity: _targetHumidity,
-                  prevFanSpeed: _prevFanSpeed,
-                  prevHumidifierMode: _prevHumidifierMode,
-                )),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                gradient: _selectedMode == 0
-                    ? const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF9D6FFF),
-                          Color(0xFF7C3AED),
-                        ],
-                      )
-                    : const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(30),
+              splashColor: Colors.white.withOpacity(0.2),
+              highlightColor: Colors.white.withOpacity(0.1),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => VentingModeScreen(
+                    initialFanLevel: _prediction?.fanLevel,
+                    currentAirTemp: _airTemp,
+                    currentHumidity: _humidity,
+                    currentSoilTemp: _soilTemp,
+                    targetTemp: _targetTemp,
+                    targetHumidity: _targetHumidity,
+                    prevFanSpeed: _prevFanSpeed,
+                    prevHumidifierMode: _prevHumidifierMode,
+                  )),
+                );
+              },
+              child: Ink(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  gradient: _selectedMode == 0
+                      ? const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFF9D6FFF),
+                            Color(0xFF7C3AED),
+                          ],
+                        )
+                      : const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
                           Colors.white,
                           Color(0xFFF5F5F5),
                         ],
@@ -996,43 +1022,49 @@ class _ClimateScreenState extends State<ClimateScreen> {
             ),
           ),
         ),
+        ),
         const SizedBox(width: 12),
         Expanded(
-          child: GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => HumidityModeScreen(
-                  initialHumidifierMode: _prediction?.humidifierMode,
-                  initialHumidifierControlMode: _prediction?.humidifierControlMode,
-                  currentAirTemp: _airTemp,
-                  currentHumidity: _humidity,
-                  currentSoilTemp: _soilTemp,
-                  targetTemp: _targetTemp,
-                  targetHumidity: _targetHumidity,
-                  prevFanSpeed: _prevFanSpeed,
-                  prevHumidifierMode: _prevHumidifierMode,
-                )),
-              );
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                gradient: _selectedMode == 1
-                    ? const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF9D6FFF),
-                          Color(0xFF7C3AED),
-                        ],
-                      )
-                    : const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Colors.white,
-                          Color(0xFFF5F5F5),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(30),
+              splashColor: Colors.white.withOpacity(0.2),
+              highlightColor: Colors.white.withOpacity(0.1),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => HumidityModeScreen(
+                    initialHumidifierMode: _prediction?.humidifierMode,
+                    initialHumidifierControlMode: _prediction?.humidifierControlMode,
+                    currentAirTemp: _airTemp,
+                    currentHumidity: _humidity,
+                    currentSoilTemp: _soilTemp,
+                    targetTemp: _targetTemp,
+                    targetHumidity: _targetHumidity,
+                    prevFanSpeed: _prevFanSpeed,
+                    prevHumidifierMode: _prevHumidifierMode,
+                  )),
+                );
+              },
+              child: Ink(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  gradient: _selectedMode == 1
+                      ? const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Color(0xFF9D6FFF),
+                            Color(0xFF7C3AED),
+                          ],
+                        )
+                      : const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.white,
+                            Color(0xFFF5F5F5),
                         ],
                       ),
                 borderRadius: BorderRadius.circular(30),
@@ -1083,6 +1115,7 @@ class _ClimateScreenState extends State<ClimateScreen> {
               ),
             ),
           ),
+        ),
         ),
       ],
     );
@@ -1231,30 +1264,50 @@ class _ClimateScreenState extends State<ClimateScreen> {
                 color: textDark,
               ),
             ),
-            Row(
-              children: [
-                Text(
-                  'View All',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: textGrey,
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                splashColor: primaryPurple.withOpacity(0.15),
+                highlightColor: primaryPurple.withOpacity(0.08),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ActivityHistoryScreen(filter: 'climate'),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    children: [
+                      Text(
+                        'View All',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: primaryPurple,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: primaryPurple.withOpacity(0.3)),
+                        ),
+                        child: Icon(
+                          Icons.arrow_forward,
+                          size: 14,
+                          color: primaryPurple,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 4),
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Icon(
-                    Icons.arrow_forward,
-                    size: 14,
-                    color: textGrey,
-                  ),
-                ),
-              ],
+              ),
             ),
           ],
         ),
@@ -1267,6 +1320,16 @@ class _ClimateScreenState extends State<ClimateScreen> {
             iconColor: activity.iconColor,
             title: activity.title,
             time: _formatTimeAgo(activity.time),
+            onTap: () => showActivityDetailSheet(
+              context,
+              icon: activity.icon,
+              iconBgColor: activity.iconBgColor,
+              iconColor: activity.iconColor,
+              title: activity.title,
+              time: activity.time,
+              source: 'climate',
+              rawData: activity.rawData,
+            ),
           ))
         else if (_recentActivities.isNotEmpty)
           ..._recentActivities.take(4).map((activity) => _buildActivityItem(
@@ -1275,6 +1338,16 @@ class _ClimateScreenState extends State<ClimateScreen> {
             iconColor: activity.iconColor,
             title: activity.title,
             time: _formatTimeAgo(activity.time),
+            onTap: () => showActivityDetailSheet(
+              context,
+              icon: activity.icon,
+              iconBgColor: activity.iconBgColor,
+              iconColor: activity.iconColor,
+              title: activity.title,
+              time: activity.time,
+              source: 'climate',
+              rawData: activity.rawData,
+            ),
           ))
         // Default items when no Firestore or API activities yet
         else ...[
@@ -1323,76 +1396,90 @@ class _ClimateScreenState extends State<ClimateScreen> {
     required Color iconColor,
     required String title,
     required String time,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Colors.white,
-            Color(0xFFFCFCFC),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: iconColor.withOpacity(0.15),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: textDark,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  time,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: textGrey,
-                  ),
-                ),
+        splashColor: iconColor.withOpacity(0.1),
+        highlightColor: iconColor.withOpacity(0.05),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Colors.white,
+                Color(0xFFFCFCFC),
               ],
             ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: iconColor.withOpacity(0.15),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+                spreadRadius: 0,
+              ),
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.08),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+                spreadRadius: 0,
+              ),
+            ],
           ),
-          Icon(
-            Icons.chevron_right,
-            color: Colors.grey.shade300,
-            size: 20,
-          ),
-        ],
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: iconBgColor,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: textDark,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    time,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: textGrey,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: Colors.grey.shade300,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+      ),
       ),
     );
   }
@@ -1405,6 +1492,7 @@ class _ActivityEntry {
   final Color iconColor;
   final String title;
   final DateTime time;
+  final Map<String, dynamic> rawData;
 
   _ActivityEntry({
     required this.icon,
@@ -1412,6 +1500,7 @@ class _ActivityEntry {
     required this.iconColor,
     required this.title,
     required this.time,
+    this.rawData = const {},
   });
 }
 

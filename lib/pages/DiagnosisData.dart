@@ -563,10 +563,15 @@ class _ViewLavenderHistoryPageState extends State<ViewLavenderHistoryPage> {
 
           // Photo with tap to view full image
           DataCell(
-            GestureDetector(
-              onTap: () => _showFullImage(photoPath, detections),
-              child: photoPath.isNotEmpty
-                  ? Container(
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(6),
+                splashColor: lavenderPrimary.withOpacity(0.15),
+                highlightColor: lavenderPrimary.withOpacity(0.08),
+                onTap: () => _showFullImage(photoPath, detections),
+                child: photoPath.isNotEmpty
+                    ? Ink(
                 height: 32,
                 width: 32,
                 decoration: BoxDecoration(
@@ -585,7 +590,7 @@ class _ViewLavenderHistoryPageState extends State<ViewLavenderHistoryPage> {
                   ),
                 ),
               )
-                  : Container(
+                  : Ink(
                 height: 32,
                 width: 32,
                 decoration: BoxDecoration(
@@ -600,6 +605,7 @@ class _ViewLavenderHistoryPageState extends State<ViewLavenderHistoryPage> {
                 ),
               ),
             ),
+          ),
           ),
         ],
       );

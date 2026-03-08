@@ -158,26 +158,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
-                                Icons.eco,
-                                size: isSmallScreen ? 50 : 70,
-                                color: const Color(0xFF7B1FA2),
+                              Image.asset(
+                                'assets/images/Loging&Signup.png',
+                                height: isSmallScreen ? 100 : 140,
+                                fit: BoxFit.contain,
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 6),
                               Text(
                                 'Create Account',
                                 style: TextStyle(
                                   fontSize: isSmallScreen ? 22 : 28,
                                   fontWeight: FontWeight.bold,
                                   color: const Color(0xFF1F2937),
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Join Lavender AI',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
                                 ),
                               ),
                             ],
@@ -404,14 +396,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
             fontSize: 14,
           ),
         ),
-        GestureDetector(
-          onTap: () => Navigator.pop(context),
-          child: Text(
-            'Login',
-            style: TextStyle(
-              color: Colors.teal[400],
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(4),
+            splashColor: Colors.teal.withOpacity(0.15),
+            highlightColor: Colors.teal.withOpacity(0.08),
+            onTap: () => Navigator.pop(context),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Text(
+                'Login',
+                style: TextStyle(
+                  color: Colors.teal[400],
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ),

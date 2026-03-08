@@ -21,6 +21,7 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
   String _annotatedImageBase64 = "";
   bool _predictionCompleted = false;
   bool _isLoading = false;
+  bool _isSaving = false;
 
   // Lavender color theme (matching login page)
   final Color lavenderPrimary = Color(0xFF9B6B9E);
@@ -116,16 +117,19 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
   }
 
   Future<void> _addLavenderDisease() async {
+    if (_isSaving) return;
     try {
 
       setState(() {
         _errorText = "";
+        _isSaving = true;
       });
 
       // Ensure prediction is completed before adding data to Firestore
       if (!_predictionCompleted) {
         setState(() {
           _errorText = 'Please wait for the prediction to complete.';
+          _isSaving = false;
         });
         return;
       }
@@ -135,6 +139,7 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
       if (currentUser == null) {
         setState(() {
           _errorText = 'Please log in to save history.';
+          _isSaving = false;
         });
         return;
       }
@@ -189,6 +194,7 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
         _predictionCompleted = false;
         _detections = [];
         _summary = {};
+        _isSaving = false;
       });
 
     } catch (e) {
@@ -208,6 +214,10 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
           duration: Duration(seconds: 3),
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
@@ -680,7 +690,7 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
                               ],
                             ),
                             child: ElevatedButton(
-                              onPressed: _addLavenderDisease,
+                              onPressed: _isSaving ? null : _addLavenderDisease,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.transparent,
                                 shadowColor: Colors.transparent,
@@ -688,20 +698,42 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.save, size: 18),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Save to History',
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
+                              child: _isSaving
+                                  ? Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                          ),
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Saving...',
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(Icons.save, size: 18),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          'Save to History',
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                ],
-                              ),
                             ),
                           ),
                         ],
