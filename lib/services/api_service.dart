@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
@@ -9,32 +9,92 @@ class ApiService {
   // GET request
   static Future<dynamic> get(String endpoint) async {
     try {
-      final url = Uri.parse('$baseUrl$endpoint');
-      final response = await http.get(url);
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      }
-      return null;
+      final response = await http
+          .get(Uri.parse('$baseUrl/health'))
+          .timeout(const Duration(seconds: 5));
+      return response.statusCode == 200;
     } catch (e) {
-      print('GET Error: $e');
-      return null;
+      print('🔌 Connection test failed: $e');
+      return false;
     }
   }
 
-  // POST request
-  static Future<dynamic> post(
-    String endpoint,
-    Map<String, dynamic> data,
-  ) async {
+  /// Main plant analysis with enhanced cross-verification
+  static Future<Map<String, dynamic>> analyzePlant({
+    required XFile image,
+    required Map<String, dynamic> sensorData,
+  }) async {
+    print('🎯 Starting plant analysis...');
+    print('📊 Sensor data: $sensorData');
+    print('📸 Image: ${image.name} (${(await image.length()) / 1024}KB)');
+
     try {
-      final url = Uri.parse('$baseUrl$endpoint');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(data),
+      final bytes = await image.readAsBytes();
+
+      // Build multipart request
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/api/analysis'),
       );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        return json.decode(response.body);
+
+      // Attach image
+      request.files.add(http.MultipartFile.fromBytes(
+        'image',
+        bytes,
+        filename: image.name,
+      ));
+
+      // Attach sensor data as JSON string
+      request.fields['sensorData'] = jsonEncode(sensorData);
+
+      print('🚀 Sending request to backend...');
+
+      final streamedResponse = await request
+          .send()
+          .timeout(const Duration(seconds: 60));
+
+      final responseBody = await streamedResponse.stream.bytesToString();
+
+      print('📥 Response received: ${streamedResponse.statusCode}');
+
+      if (streamedResponse.statusCode == 200) {
+        try {
+          final response = jsonDecode(responseBody);
+          print('✅ Analysis successful');
+          print(
+            '📈 Health Score: ${response['dashboardSummary']?['healthScore']}%',
+          );
+          print(
+            '🤝 Cross-verification: ${response['crossVerification']?['matchPercentage']}% match',
+          );
+          return response;
+        } catch (e) {
+          print('❌ JSON parse error: $e');
+          print('Raw response: $responseBody');
+          throw Exception('JSON parse error: $e');
+        }
+      } else {
+        print('❌ Server error ${streamedResponse.statusCode}: $responseBody');
+        throw Exception(
+          'Server error ${streamedResponse.statusCode}: $responseBody',
+        );
+      }
+    } catch (e) {
+      print('💥 Unexpected error in analyzePlant: $e');
+      rethrow;
+    }
+  }
+
+  /// Get analysis history (if you implement this endpoint)
+  static Future<List<Map<String, dynamic>>> getAnalysisHistory() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/api/analysis/history'))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return List<Map<String, dynamic>>.from(data['history'] ?? []);
       }
       return null;
     } catch (e) {
@@ -46,13 +106,12 @@ class ApiService {
   // Upload image
   static Future<Map<String, dynamic>?> uploadImage(File image) async {
     try {
-      final url = Uri.parse('$baseUrl/analyze');
-      var request = http.MultipartRequest('POST', url);
-      request.files.add(await http.MultipartFile.fromPath('image', image.path));
-      final response = await request.send();
-      final responseData = await response.stream.bytesToString();
+      final response = await http
+          .get(Uri.parse('$baseUrl/api/analysis/summary'))
+          .timeout(const Duration(seconds: 10));
+
       if (response.statusCode == 200) {
-        return json.decode(responseData);
+        return jsonDecode(response.body);
       }
       return null;
     } catch (e) {

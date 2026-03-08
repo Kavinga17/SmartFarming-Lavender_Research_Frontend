@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dashboard_screen.dart';
@@ -17,7 +19,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  // GoogleSignIn is only used on non-web platforms.
+  // On web, we use Firebase's signInWithPopup (no client ID required in code).
+  final GoogleSignIn? _googleSignIn = kIsWeb ? null : GoogleSignIn();
   final LocalAuthentication _localAuth = LocalAuthentication();
   bool _obscurePassword = true;
   bool _isLoading = false;
@@ -130,20 +134,27 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isLoading = true);
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) {
-        setState(() => _isLoading = false);
-        return; // User cancelled
+      if (kIsWeb) {
+        // On web: use Firebase's built-in Google popup (no GoogleSignIn client ID needed)
+        final googleProvider = GoogleAuthProvider();
+        await _auth.signInWithPopup(googleProvider);
+      } else {
+        // On mobile: use google_sign_in package
+        final GoogleSignInAccount? googleUser = await _googleSignIn!.signIn();
+        if (googleUser == null) {
+          setState(() => _isLoading = false);
+          return; // User cancelled
+        }
+
+        final GoogleSignInAuthentication googleAuth =
+            await googleUser.authentication;
+        final credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+
+        await _auth.signInWithCredential(credential);
       }
-
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      await _auth.signInWithCredential(credential);
       if (!mounted) return;
       _showMessage('Signed in with Google!');
       Navigator.pushReplacement(
@@ -152,6 +163,44 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } catch (e) {
       _showMessage('Google sign-in failed: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleFacebookSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      // Trigger the Facebook login flow
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['email', 'public_profile'],
+      );
+
+      if (result.status == LoginStatus.success) {
+        // Get the access token
+        final AccessToken accessToken = result.accessToken!;
+
+        // Create a credential from the access token
+        final OAuthCredential credential = FacebookAuthProvider.credential(
+          accessToken.tokenString,
+        );
+
+        // Sign in to Firebase with the Facebook credential
+        await _auth.signInWithCredential(credential);
+        
+        if (!mounted) return;
+        _showMessage('Signed in with Facebook!');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => DashboardScreen()),
+        );
+      } else if (result.status == LoginStatus.cancelled) {
+        _showMessage('Facebook sign-in cancelled', isError: true);
+      } else {
+        _showMessage('Facebook sign-in failed: ${result.message}', isError: true);
+      }
+    } catch (e) {
+      _showMessage('Facebook sign-in error: $e', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -328,79 +377,10 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildLavenderImage(bool isSmallScreen) {
-    return Container(
-      height: isSmallScreen ? 160 : 250,
-      width: isSmallScreen ? 160 : 250,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Stack of flower icons to simulate lavender
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              // Main lavender representation
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Lavender flowers
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Transform.rotate(
-                        angle: -0.3,
-                        child: _buildLavenderStalk(isSmallScreen ? 60 : 100),
-                      ),
-                      _buildLavenderStalk(isSmallScreen ? 80 : 120),
-                      Transform.rotate(
-                        angle: 0.3,
-                        child: _buildLavenderStalk(isSmallScreen ? 70 : 110),
-                      ),
-                    ],
-                  ),
-                  // Leaves
-                  Icon(
-                    Icons.eco,
-                    size: isSmallScreen ? 40 : 60,
-                    color: const Color(0xFF4CAF50),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLavenderStalk(double height) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Flower spikes
-        for (int i = 0; i < 5; i++)
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 1),
-            child: Icon(
-              Icons.water_drop,
-              size: height / 8,
-              color: Color.lerp(
-                const Color(0xFF9C27B0),
-                const Color(0xFF7B1FA2),
-                i / 5,
-              ),
-            ),
-          ),
-        // Stem
-        Container(
-          width: 3,
-          height: height * 0.3,
-          decoration: BoxDecoration(
-            color: const Color(0xFF4CAF50),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-      ],
+    return Image.asset(
+      'assets/images/Loging&Signup.png',
+      height: isSmallScreen ? 170 : 260,
+      fit: BoxFit.contain,
     );
   }
 
@@ -661,7 +641,7 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(width: 20),
         // Facebook
         _socialLoginButton(
-          onPressed: () {},
+          onPressed: _isLoading ? () {} : _handleFacebookSignIn,
           child: const Icon(
             Icons.facebook,
             color: Color(0xFF1877F2),
@@ -693,20 +673,29 @@ class _LoginScreenState extends State<LoginScreen> {
             fontSize: 14,
           ),
         ),
-        GestureDetector(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => const RegisterScreen()),
-            );
-          },
-          child: Text(
-            'Sign up',
-            style: TextStyle(
-              color: Colors.teal[400],
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(4),
+            splashColor: Colors.teal.withOpacity(0.15),
+            highlightColor: Colors.teal.withOpacity(0.08),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const RegisterScreen()),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Text(
+                'Sign up',
+                style: TextStyle(
+                  color: Colors.teal[400],
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ),
