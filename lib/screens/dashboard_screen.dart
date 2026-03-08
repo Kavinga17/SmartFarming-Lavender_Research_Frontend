@@ -8,6 +8,7 @@ import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'activity_history_screen.dart';
 import '../pages/MainMenu.dart';
+import '../soil/soil_health_dashboard.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -233,7 +234,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       badge: 'Moisture: 65%',
                       badgeColor: primaryOrange,
                       actionText: 'Run Diagnostic',
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SoilHealthDashboard(),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     // Climate Control Card
