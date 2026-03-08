@@ -20,13 +20,13 @@ class FirebaseService {
   factory FirebaseService() => _instance;
   FirebaseService._internal();
 
-  // Firebase instances
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
-  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
-  final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  // Firebase instances - lazily evaluated for web support
+  FirebaseAuth get _auth => FirebaseAuth.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  FirebaseStorage get _storage => FirebaseStorage.instance;
+  FirebaseAnalytics get _analytics => FirebaseAnalytics.instance;
+  FirebaseMessaging get _messaging => FirebaseMessaging.instance;
+  GoogleSignIn get _googleSignIn => GoogleSignIn();
 
   // Getters for Firebase instances
   FirebaseAuth get auth => _auth;

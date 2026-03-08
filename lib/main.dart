@@ -5,8 +5,12 @@ import 'screens/login_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp();
+  // Initialize Firebase (wrapped in try-catch to allow web to run without config)
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    print("Firebase initialization failed (expected on web without config): $e");
+  }
   
   runApp(const LavenderAIApp());
 }

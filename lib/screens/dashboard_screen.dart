@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'climate_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
+import 'lighting_control_screen.dart';
+import 'diagnostic_screen.dart';
+import 'analytics_report_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -15,8 +19,11 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedTabIndex = 0;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
+  // Lazily instantiate these so they don't crash the web app on launch
+  FirebaseAuth get _auth => FirebaseAuth.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   String? _profileImageUrl;
 
@@ -37,6 +44,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadUserProfile() async {
+    if (kIsWeb) {
+      return; // Skip profile loading on web without Firebase config
+    }
     try {
       User? user = _auth.currentUser;
       if (user != null) {
@@ -73,7 +83,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   children: [
                     // Lavender Plant Health Card
-                    _buildHealthCard(),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const AnalyticsReportScreen()),
+                        );
+                      },
+                      child: _buildHealthCard(),
+                    ),
                     const SizedBox(height: 16),
                     // Disease Detection Card
                     _buildFeatureCard(
@@ -85,7 +103,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       badge: '2 Scans Today',
                       badgeColor: primaryPurple,
                       actionText: 'Tap to Scan',
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DiagnosticScreen(
+                              analysisResult: {
+                                'dashboardSummary': {'healthScore': 85.0},
+                                'intelligentDiagnosis': {
+                                  'emergencyLevel': {'level': 'low', 'message': 'MONITOR REGULARLY'},
+                                  'verdict': 'PLANT IS HEALTHY',
+                                },
+                                'visualAssessment': {
+                                  'cnnPrediction': 'healthy',
+                                  'confidence': 0.85,
+                                  'message': 'Plant appears healthy',
+                                },
+                                'crossVerification': {
+                                  'matchPercentage': 92.5,
+                                  'confidence': 'high',
+                                },
+                                'sensorReadings': {
+                                  'raw': {
+                                    'moisture': 45.0,
+                                    'ph': 6.5,
+                                    'ec': 1.2,
+                                    'temperature': 24.5,
+                                    'nitrogen': 150.0,
+                                    'phosphorus': 120.0,
+                                    'potassium': 180.0,
+                                  },
+                                },
+                                'recommendations': {'priorityOrder': []},
+                              },
+                              sensorData: {
+                                'moisture': 45.0,
+                                'ph': 6.5,
+                                'ec': 1.2,
+                                'temperature': 24.5,
+                                'nitrogen': 150.0,
+                                'phosphorus': 120.0,
+                                'potassium': 180.0,
+                              },
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     // Soil Health Card
@@ -98,7 +161,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       badge: 'Moisture: 65%',
                       badgeColor: primaryOrange,
                       actionText: 'Run Diagnostic',
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => DiagnosticScreen(
+                              analysisResult: {
+                                'dashboardSummary': {'healthScore': 85.0},
+                                'intelligentDiagnosis': {
+                                  'emergencyLevel': {'level': 'low', 'message': 'MONITOR REGULARLY'},
+                                  'verdict': 'PLANT IS HEALTHY',
+                                },
+                                'visualAssessment': {
+                                  'cnnPrediction': 'healthy',
+                                  'confidence': 0.85,
+                                  'message': 'Plant appears healthy',
+                                },
+                                'crossVerification': {
+                                  'matchPercentage': 92.5,
+                                  'confidence': 'high',
+                                },
+                                'sensorReadings': {
+                                  'raw': {
+                                    'moisture': 45.0,
+                                    'ph': 6.5,
+                                    'ec': 1.2,
+                                    'temperature': 24.5,
+                                    'nitrogen': 150.0,
+                                    'phosphorus': 120.0,
+                                    'potassium': 180.0,
+                                  },
+                                },
+                                'recommendations': {'priorityOrder': []},
+                              },
+                              sensorData: {
+                                'moisture': 45.0,
+                                'ph': 6.5,
+                                'ec': 1.2,
+                                'temperature': 24.5,
+                                'nitrogen': 150.0,
+                                'phosphorus': 120.0,
+                                'potassium': 180.0,
+                              },
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     // Climate Control Card
@@ -129,7 +237,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       badge: 'Status: Auto',
                       badgeColor: primaryYellow,
                       actionText: 'Control Lights',
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const LightingControlScreen()),
+                        );
+                      },
                     ),
                     const SizedBox(height: 20),
                     // Stats Row
@@ -868,9 +981,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildDrawer() {
-    final user = _auth.currentUser;
+    User? user;
+    if (!kIsWeb) {
+      try {
+        user = _auth.currentUser;
+      } catch (_) {}
+    }
     final userName = user?.displayName ?? 'User';
-    final userEmail = user?.email ?? '';
+    final userEmail = user?.email ?? 'guest@lavender.ai';
 
     return Drawer(
       child: Container(

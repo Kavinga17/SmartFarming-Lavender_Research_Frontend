@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/diagnostic_history.dart';
 
+
 class DiagnosticScreen extends StatefulWidget {
   final Map<String, dynamic> analysisResult;
   final Map<String, dynamic> sensorData;

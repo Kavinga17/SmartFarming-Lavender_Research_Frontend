@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dashboard_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -16,8 +17,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
+  // Lazily instantiate these so they don't crash the web app on launch
+  FirebaseAuth get _auth => FirebaseAuth.instance;
+  FirebaseFirestore get _firestore => FirebaseFirestore.instance;
+  
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
@@ -69,23 +73,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Create user in Firebase Auth
-      final credential = await _auth.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      if (kIsWeb) {
+        // Mock registration for web without Firebase config
+        await Future.delayed(const Duration(seconds: 1));
+      } else {
+        // Create user in Firebase Auth
+        final credential = await _auth.createUserWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
 
-      // Update display name
-      await credential.user?.updateDisplayName(name);
+        // Update display name
+        await credential.user?.updateDisplayName(name);
 
-      // Save user data to Firestore
-      await _firestore.collection('users').doc(credential.user!.uid).set({
-        'name': name,
-        'email': email,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'role': 'user',
-      });
+        // Save user data to Firestore
+        await _firestore.collection('users').doc(credential.user!.uid).set({
+          'name': name,
+          'email': email,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'role': 'user',
+        });
+      }
 
       if (!mounted) return;
       _showMessage('Account created successfully!');

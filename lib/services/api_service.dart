@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:async';
 import 'dart:html' as html;
 import 'package:image_picker/image_picker.dart';
+import '../models/sensor_model.dart';
+import '../models/lighting_model.dart';
 
 class ApiService {
   static const String baseUrl = 'http://localhost:5000';
@@ -137,6 +139,46 @@ class ApiService {
     } catch (e) {
       print('❌ Failed to get summary: $e');
       return {'status': 'error', 'message': 'Failed to load summary'};
+    }
+  }
+
+  /// Mock fetch sensor data
+  static Future<SensorData?> fetchSensorData() async {
+    try {
+      // Return mock data for now
+      return SensorData(
+        temperature: 24.5,
+        humidity: 60.0,
+        lightIntensity: 5000,
+        timestamp: DateTime.now(),
+      );
+    } catch (e) {
+      print('❌ Failed to fetch sensor data: $e');
+      return null;
+    }
+  }
+
+  /// Mock update lighting
+  static Future<bool> updateLighting(LightingState state) async {
+    try {
+      // Mock successful update
+      print('💡 Lighting updated to Red: ${state.red}, Blue: ${state.blue}, White: ${state.white}');
+      return true;
+    } catch (e) {
+      print('❌ Failed to update lighting: $e');
+      return false;
+    }
+  }
+
+  /// Mock update photoperiod
+  static Future<bool> updatePhotoperiod(bool enabled, dynamic onTime, dynamic offTime) async {
+    try {
+      // Mock successful update
+      print('⏰ Photoperiod updated - Enabled: $enabled');
+      return true;
+    } catch (e) {
+      print('❌ Failed to update photoperiod: $e');
+      return false;
     }
   }
 }

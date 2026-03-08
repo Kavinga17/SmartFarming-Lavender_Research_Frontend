@@ -10,6 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
 
+  fl_chart: ^0.66.0
+
   # UI Components
   cupertino_icons: ^1.0.8
   

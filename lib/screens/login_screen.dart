@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dashboard_screen.dart';
 import 'register_screen.dart';
 
@@ -16,8 +17,11 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  
+  // Lazily instantiate these so they don't crash the web app on launch
+  FirebaseAuth get _auth => FirebaseAuth.instance;
+  GoogleSignIn get _googleSignIn => GoogleSignIn();
+  
   final LocalAuthentication _localAuth = LocalAuthentication();
   bool _obscurePassword = true;
   bool _isLoading = false;
@@ -82,14 +86,19 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
-      
-      // Save credentials for biometric login if enabled
-      final prefs = await SharedPreferences.getInstance();
-      bool biometricEnabled = prefs.getBool('biometric_enabled') ?? false;
-      if (biometricEnabled) {
-        await prefs.setString('biometric_email', email);
-        await prefs.setString('biometric_password', password);
+      if (kIsWeb) {
+        // Mock login for web without Firebase config
+        await Future.delayed(const Duration(seconds: 1));
+      } else {
+        await _auth.signInWithEmailAndPassword(email: email, password: password);
+        
+        // Save credentials for biometric login if enabled
+        final prefs = await SharedPreferences.getInstance();
+        bool biometricEnabled = prefs.getBool('biometric_enabled') ?? false;
+        if (biometricEnabled) {
+          await prefs.setString('biometric_email', email);
+          await prefs.setString('biometric_password', password);
+        }
       }
       
       if (!mounted) return;
