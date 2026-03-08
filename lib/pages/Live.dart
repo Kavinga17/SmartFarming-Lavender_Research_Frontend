@@ -13,6 +13,15 @@ class ESP32HatDetectionPage extends StatefulWidget {
 }
 
 class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
+  // App theme colors (matching existing app)
+  static const Color primaryPurple = Color(0xFF8B5CF6);
+  static const Color darkPurple = Color(0xFF7C3AED);
+  static const Color lightPurple = Color(0xFFEDE9FE);
+  static const Color backgroundColor = Color(0xFFF8F9FA);
+  static const Color textDark = Color(0xFF1F2937);
+  static const Color textGrey = Color(0xFF6B7280);
+  static const Color primaryGreen = Color(0xFF22C55E);
+
   // Connection status
   bool _isConnected = false;
   bool _isConnecting = false;
@@ -89,7 +98,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Connected to ESP32-CAM'),
-            backgroundColor: Colors.green,
+            backgroundColor: primaryGreen,
           ),
         );
       } else {
@@ -181,7 +190,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('LED test successful'), backgroundColor: Colors.green),
+          SnackBar(content: Text('LED test successful'), backgroundColor: primaryGreen),
         );
       }
     } catch (e) {
@@ -199,7 +208,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Snapshot saved'), backgroundColor: Colors.green),
+          SnackBar(content: Text('Snapshot saved'), backgroundColor: primaryGreen),
         );
       }
     } catch (e) {
@@ -225,93 +234,94 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Live Detection'),
-        backgroundColor: Colors.blue.shade900,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.settings),
-            onPressed: _showSettingsDialog,
-          ),
-        ],
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade900, Colors.blue.shade700],
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
+    return Column(
+      children: [
+        // Settings row
+        Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              // Status Bar
-              _buildStatusBar(),
-
-              // Video Feed
-              Expanded(
-                flex: 3,
-                child: _buildVideoFeed(),
+              IconButton(
+                icon: Icon(Icons.settings_outlined, color: textDark, size: 22),
+                onPressed: _showSettingsDialog,
               ),
-
-              // Detection Info
-              _buildDetectionInfo(),
-
-              // Control Buttons
-              _buildControlButtons(),
-
-              // Manual LED Control
-              if (_isConnected) _buildLedControl(),
-
-              // Error Message
-              if (_errorMessage.isNotEmpty) _buildErrorMessage(),
             ],
           ),
         ),
-      ),
+        // Status Bar
+        _buildStatusBar(),
+
+        // Video Feed
+        Expanded(
+          flex: 3,
+          child: _buildVideoFeed(),
+        ),
+
+        // Detection Info
+        _buildDetectionInfo(),
+
+        // Control Buttons
+        _buildControlButtons(),
+
+        // Manual LED Control
+        if (_isConnected) _buildLedControl(),
+
+        // Error Message
+        if (_errorMessage.isNotEmpty) _buildErrorMessage(),
+
+        SizedBox(height: 8),
+      ],
     );
   }
 
   Widget _buildStatusBar() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Colors.black26,
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      margin: EdgeInsets.fromLTRB(16, 12, 16, 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           Container(
-            width: 12,
-            height: 12,
+            width: 10,
+            height: 10,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: _isConnected ? Colors.green : Colors.red,
+              color: _isConnected ? primaryGreen : Colors.red.shade400,
             ),
           ),
           SizedBox(width: 8),
           Text(
             _isConnected ? 'Connected' : 'Disconnected',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: textDark, fontWeight: FontWeight.w600, fontSize: 13),
           ),
           if (_isConnected) ...[
             SizedBox(width: 16),
-            Icon(Icons.speed, color: Colors.white, size: 16),
+            Icon(Icons.speed, color: primaryPurple, size: 16),
             SizedBox(width: 4),
             Text(
               '${_detections['fps']} FPS',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: textGrey, fontSize: 12),
             ),
             SizedBox(width: 16),
             Icon(Icons.lightbulb,
-              color: _detections['led_active'] ? Colors.yellow : Colors.white54,
+              color: _detections['led_active'] ? Colors.amber : textGrey,
               size: 16,
             ),
             SizedBox(width: 4),
             Text(
               _detections['led_active'] ? 'LED ON' : 'LED OFF',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: textGrey, fontSize: 12),
             ),
           ],
         ],
@@ -326,10 +336,10 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
         decoration: BoxDecoration(
           color: Colors.black,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white24, width: 2),
+          border: Border.all(color: primaryPurple.withOpacity(0.2), width: 2),
           boxShadow: [
             BoxShadow(
-              color: Colors.black54,
+              color: Colors.black.withOpacity(0.12),
               blurRadius: 10,
               offset: Offset(0, 5),
             ),
@@ -364,7 +374,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
                   child: Container(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
-                      color: Colors.orange,
+                      color: Colors.orange.shade600,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
@@ -387,7 +397,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _detections['led_active'] ? Colors.green : Colors.grey.shade800,
+                    color: _detections['led_active'] ? primaryGreen : Colors.grey.shade800,
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -432,9 +442,9 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
       return Container(
         margin: EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.black,
+          color: primaryPurple.withOpacity(0.06),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white24, width: 2),
+          border: Border.all(color: primaryPurple.withOpacity(0.15), width: 2),
         ),
         child: Center(
           child: Column(
@@ -443,16 +453,16 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
               Icon(
                 _isConnecting ? Icons.wifi : Icons.videocam_off,
                 size: 50,
-                color: Colors.white54,
+                color: primaryPurple.withOpacity(0.4),
               ),
               SizedBox(height: 10),
               Text(
                 _isConnecting ? 'Connecting...' : 'No Video Feed',
-                style: TextStyle(color: Colors.white54),
+                style: TextStyle(color: textGrey, fontWeight: FontWeight.w600),
               ),
               if (_isConnecting) ...[
                 SizedBox(height: 10),
-                CircularProgressIndicator(color: Colors.white),
+                CircularProgressIndicator(color: primaryPurple),
               ],
             ],
           ),
@@ -462,42 +472,36 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
   }
 
   Widget _buildDetectionInfo() {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 16),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 10,
-            offset: Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildInfoCard(
-            'Current',
-            '${_detections['hat_count']}',
-            Icons.person,
-            _detections['hat_count'] > 0 ? Colors.orange : Colors.grey,
-          ),
-          _buildInfoCard(
-            'Total',
-            '$_totalDetections',
-            Icons.history,
-            Colors.blue,
-          ),
-          _buildInfoCard(
-            'LED',
-            _detections['led_active'] ? 'ON' : 'OFF',
-            Icons.lightbulb,
-            _detections['led_active'] ? Colors.green : Colors.red,
-          ),
-        ],
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      elevation: 2,
+      child: Container(
+        margin: EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildInfoCard(
+              'Current',
+              '${_detections['hat_count']}',
+              Icons.person,
+              _detections['hat_count'] > 0 ? Colors.orange : textGrey,
+            ),
+            _buildInfoCard(
+              'Total',
+              '$_totalDetections',
+              Icons.history,
+              primaryPurple,
+            ),
+            _buildInfoCard(
+              'LED',
+              _detections['led_active'] ? 'ON' : 'OFF',
+              Icons.lightbulb,
+              _detections['led_active'] ? primaryGreen : Colors.red.shade400,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -518,13 +522,13 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
             value,
             style: TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
               color: color,
             ),
           ),
           Text(
             label,
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 10, color: textGrey),
           ),
         ],
       ),
@@ -543,9 +547,13 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
                 icon: Icon(Icons.link),
                 label: Text(_isConnecting ? 'Connecting...' : 'Connect'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
+                  backgroundColor: primaryPurple,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
                 ),
               ),
             )
@@ -556,9 +564,13 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
                 icon: Icon(Icons.link_off),
                 label: Text('Disconnect'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: Colors.red.shade400,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
                 ),
               ),
             ),
@@ -571,9 +583,13 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
                 icon: Icon(Icons.camera_alt),
                 label: Text('Snapshot'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
+                  backgroundColor: Colors.orange.shade600,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
                 ),
               ),
             ),
@@ -594,17 +610,26 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
               icon: Icon(_detections['led_active'] ? Icons.power_off : Icons.power),
               label: Text(_detections['led_active'] ? 'Turn LED OFF' : 'Turn LED ON'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: BorderSide(color: Colors.white),
+                foregroundColor: primaryPurple,
+                side: BorderSide(color: primaryPurple),
                 padding: EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ),
           SizedBox(width: 8),
-          IconButton(
-            onPressed: _testLed,
-            icon: Icon(Icons.science),
-            color: Colors.white,
+          Container(
+            decoration: BoxDecoration(
+              color: primaryPurple.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: IconButton(
+              onPressed: _testLed,
+              icon: Icon(Icons.science),
+              color: primaryPurple,
+            ),
           ),
         ],
       ),
@@ -616,17 +641,18 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
       margin: EdgeInsets.all(16),
       padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.shade100,
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
       ),
       child: Row(
         children: [
-          Icon(Icons.error, color: Colors.red),
+          Icon(Icons.error, color: Colors.red.shade400),
           SizedBox(width: 8),
           Expanded(
             child: Text(
               _errorMessage,
-              style: TextStyle(color: Colors.red.shade900),
+              style: TextStyle(color: Colors.red.shade700),
             ),
           ),
         ],
@@ -641,12 +667,19 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: Text('Settings'),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Text(
+                'Settings',
+                style: TextStyle(fontWeight: FontWeight.w700, color: textDark),
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SwitchListTile(
-                    title: Text('Auto LED Control'),
+                    title: Text('Auto LED Control', style: TextStyle(fontSize: 14)),
+                    activeColor: primaryPurple,
                     value: _autoLedControl,
                     onChanged: (value) {
                       setState(() {
@@ -655,7 +688,8 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
                     },
                   ),
                   SwitchListTile(
-                    title: Text('Debug Mode'),
+                    title: Text('Debug Mode', style: TextStyle(fontSize: 14)),
+                    activeColor: primaryPurple,
                     value: _debugMode,
                     onChanged: (value) {
                       setState(() {
@@ -665,13 +699,13 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
                     },
                   ),
                   ListTile(
-                    title: Text('Confidence Threshold'),
+                    title: Text('Confidence Threshold', style: TextStyle(fontSize: 14)),
                     subtitle: Text('${(_confidenceThreshold * 100).toStringAsFixed(0)}%'),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: Icon(Icons.remove),
+                          icon: Icon(Icons.remove, color: primaryPurple),
                           onPressed: () {
                             setState(() {
                               _confidenceThreshold = (_confidenceThreshold - 0.05).clamp(0.05, 0.95);
@@ -680,7 +714,7 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
                           },
                         ),
                         IconButton(
-                          icon: Icon(Icons.add),
+                          icon: Icon(Icons.add, color: primaryPurple),
                           onPressed: () {
                             setState(() {
                               _confidenceThreshold = (_confidenceThreshold + 0.05).clamp(0.05, 0.95);
@@ -696,11 +730,11 @@ class _ESP32HatDetectionPageState extends State<ESP32HatDetectionPage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: Text('Close'),
+                  child: Text('Close', style: TextStyle(color: textGrey)),
                 ),
                 TextButton(
                   onPressed: _testLed,
-                  child: Text('Test LED'),
+                  child: Text('Test LED', style: TextStyle(color: primaryPurple)),
                 ),
               ],
             );
