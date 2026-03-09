@@ -1,6 +1,7 @@
 // lib/screens/irrigation_setup_screen.dart
 import 'package:flutter/material.dart';
 import '../services/soil_backend_service.dart';
+import 'soil_notification_popup.dart';
 
 class IrrigationSetupScreen extends StatefulWidget {
   const IrrigationSetupScreen({super.key});
@@ -10,15 +11,15 @@ class IrrigationSetupScreen extends StatefulWidget {
 }
 
 class _IrrigationSetupScreenState extends State<IrrigationSetupScreen> {
-  // Color palette
-  static const Color primaryPurple = Color(0xFF8A4FFF);
-  static const Color successGreen = Color(0xFF2ECC71);
-  static const Color warningAmber = Color(0xFFFFA726);
-  static const Color dangerRed = Color(0xFFE74C3C);
-  static const Color backgroundColor = Color(0xFFF5F7FA);
+  // Color palette — matches app-wide design system
+  static const Color primaryPurple = Color(0xFF8B5CF6);
+  static const Color successGreen = Color(0xFF22C55E);
+  static const Color warningAmber = Color(0xFFFBBF24);
+  static const Color dangerRed = Color(0xFFEF4444);
+  static const Color backgroundColor = Color(0xFFF8F9FA);
   static const Color cardColor = Colors.white;
-  static const Color textColor = Color(0xFF2C3E50);
-  static const Color lightTextColor = Color(0xFF95A5A6);
+  static const Color textColor = Color(0xFF1F2937);
+  static const Color lightTextColor = Color(0xFF6B7280);
 
   // Form controllers
   final _formKey = GlobalKey<FormState>();
@@ -144,16 +145,14 @@ class _IrrigationSetupScreenState extends State<IrrigationSetupScreen> {
       Navigator.pop(context); // Close loading dialog
 
       if (result != null && result['success'] == true) {
-        // Success
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Irrigation routine saved successfully!'),
-            backgroundColor: successGreen,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+        // Success — show notification popup then go back
+        if (!mounted) return;
+        showSoilNotification(
+          context,
+          diagnosis: 'ROUTINE_CREATED',
+          action: 'Irrigation routine has been created successfully!',
+          recommendation:
+              'Next watering: ${result['schedule']?['nextWatering'] ?? 'scheduled'}',
         );
         Navigator.pop(context, true);
       } else {
@@ -244,40 +243,38 @@ class _IrrigationSetupScreenState extends State<IrrigationSetupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        title: const Text(
-          'Irrigation Setup',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-          ),
-        ),
-        backgroundColor: primaryPurple,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
               // Basic Info Card
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: cardColor,
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Colors.white, Color(0xFFFAFAFA)],
+                  ),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+                      color: primaryPurple.withOpacity(0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.1),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
@@ -399,13 +396,22 @@ class _IrrigationSetupScreenState extends State<IrrigationSetupScreen> {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: cardColor,
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Colors.white, Color(0xFFFAFAFA)],
+                  ),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
+                      color: primaryPurple.withOpacity(0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.1),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
@@ -486,22 +492,38 @@ class _IrrigationSetupScreenState extends State<IrrigationSetupScreen> {
               const SizedBox(height: 16),
 
               // Calculate Button
-              SizedBox(
+              Container(
                 width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF9D6FFF), Color(0xFF7C3AED)],
+                  ),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryPurple.withOpacity(0.4),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
                 child: ElevatedButton(
                   onPressed: _calculateSchedule,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryPurple,
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(30),
                     ),
-                    elevation: 4,
+                    elevation: 0,
                   ),
                   child: const Text(
                     'CALCULATE SCHEDULE',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -512,7 +534,11 @@ class _IrrigationSetupScreenState extends State<IrrigationSetupScreen> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: cardColor,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Colors.white, Color(0xFFFAFAFA)],
+                    ),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                       color: primaryPurple.withOpacity(0.3),
@@ -520,9 +546,14 @@ class _IrrigationSetupScreenState extends State<IrrigationSetupScreen> {
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: primaryPurple.withOpacity(0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                        color: primaryPurple.withOpacity(0.15),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        blurRadius: 6,
+                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),
@@ -573,23 +604,40 @@ class _IrrigationSetupScreenState extends State<IrrigationSetupScreen> {
                       const SizedBox(height: 20),
 
                       // Save Button
-                      SizedBox(
+                      Container(
                         width: double.infinity,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF34D399), Color(0xFF22C55E), Color(0xFF16A34A)],
+                          ),
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: [
+                            BoxShadow(
+                              color: successGreen.withOpacity(0.4),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
                         child: ElevatedButton(
                           onPressed: _saveRoutine,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: successGreen,
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
                             foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(30),
                             ),
+                            elevation: 0,
                           ),
                           child: const Text(
                             'SAVE ROUTINE',
                             style: TextStyle(
                               fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -601,6 +649,74 @@ class _IrrigationSetupScreenState extends State<IrrigationSetupScreen> {
             ],
           ),
         ),
+      ),
+            ),  // Expanded
+          ],  // Column children
+        ),  // Column
+      ),  // SafeArea
+    );  // Scaffold
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios, color: textColor, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
+          RichText(
+            text: const TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Lavender ',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                TextSpan(
+                  text: 'AI',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w400,
+                    color: textColor,
+                  ),
+                ),
+                TextSpan(
+                  text: ' 🌿',
+                  style: TextStyle(fontSize: 18),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          // Page context badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: primaryPurple.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.water_drop, size: 14, color: primaryPurple),
+                const SizedBox(width: 4),
+                Text(
+                  'Irrigation',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: primaryPurple,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

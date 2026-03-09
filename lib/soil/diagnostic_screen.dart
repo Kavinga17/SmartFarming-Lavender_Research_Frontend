@@ -16,16 +16,16 @@ class DiagnosticScreen extends StatefulWidget {
 }
 
 class _DiagnosticScreenState extends State<DiagnosticScreen> {
-  // Color Palette
-  static const Color primaryColor = Color(0xFF8A4FFF); // Lavender Purple
-  static const Color dangerColor = Color(0xFFE74C3C); // Red
-  static const Color warningColor = Color(0xFFFFA726); // Amber
-  static const Color successColor = Color(0xFF2ECC71); // Green
-  static const Color infoColor = Color(0xFF3498DB); // Blue
-  static const Color backgroundColor = Color(0xFFF5F7FA);
+  // Color Palette — matches app-wide design system
+  static const Color primaryColor = Color(0xFF8B5CF6);  // primaryPurple
+  static const Color dangerColor = Color(0xFFEF4444);   // dangerRed
+  static const Color warningColor = Color(0xFFFBBF24);  // warningAmber
+  static const Color successColor = Color(0xFF22C55E);  // successGreen
+  static const Color infoColor = Color(0xFF3B82F6);     // primaryBlue
+  static const Color backgroundColor = Color(0xFFF8F9FA);
   static const Color cardColor = Colors.white;
-  static const Color textColor = Color(0xFF2C3E50);
-  static const Color lightTextColor = Color(0xFF95A5A6);
+  static const Color textColor = Color(0xFF1F2937);     // textDark
+  static const Color lightTextColor = Color(0xFF6B7280); // textGrey
 
   // Helper to safely get data from API response
   dynamic _getFromResult(String key, [dynamic defaultValue]) {
@@ -118,57 +118,113 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        title: const Text(
-          'Diagnostic Report',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-          ),
-        ),
-        centerTitle: true,
-        backgroundColor: primaryColor,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Emergency Banner
-            _buildEmergencyBanner(),
-            const SizedBox(height: 20),
+            _buildHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Emergency Banner
+                    _buildEmergencyBanner(),
+                    const SizedBox(height: 20),
 
-            // 3-Class Model Result
-            _buildThreeClassResult(),
-            const SizedBox(height: 20),
+                    // 3-Class Model Result
+                    _buildThreeClassResult(),
+                    const SizedBox(height: 20),
 
-            // Yellow Meter (if available)
-            if (_yellowMeter.isNotEmpty) ...[
-              _buildYellowMeter(),
-              const SizedBox(height: 20),
-            ],
+                    // Yellow Meter (if available)
+                    if (_yellowMeter.isNotEmpty) ...[
+                      _buildYellowMeter(),
+                      const SizedBox(height: 20),
+                    ],
 
-            // Moisture Reading
-            _buildMoistureCard(),
-            const SizedBox(height: 20),
+                    // Moisture Reading
+                    _buildMoistureCard(),
+                    const SizedBox(height: 20),
 
-            // Diagnosis & Action
-            _buildDiagnosisCard(),
-            const SizedBox(height: 20),
+                    // Diagnosis & Action
+                    _buildDiagnosisCard(),
+                    const SizedBox(height: 20),
 
-            // Warning if any
-            if (_warning != null) ...[
-              _buildWarningCard(),
-              const SizedBox(height: 20),
-            ],
+                    // Warning if any
+                    if (_warning != null) ...[
+                      _buildWarningCard(),
+                      const SizedBox(height: 20),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios, color: textColor, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
+          RichText(
+            text: const TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Lavender ',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                TextSpan(
+                  text: 'AI',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w400,
+                    color: textColor,
+                  ),
+                ),
+                TextSpan(
+                  text: ' 🌿',
+                  style: TextStyle(fontSize: 18),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          // Page context badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.science, size: 14, color: primaryColor),
+                const SizedBox(width: 4),
+                Text(
+                  'Diagnostic',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: primaryColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -200,12 +256,12 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: bannerColor,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: bannerColor.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -243,16 +299,33 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
         ? Map<String, dynamic>.from(_threeClass['probabilities'] as Map)
         : {};
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'AI Visual Analysis',
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFFAFAFA)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'AI Visual Analysis',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -342,7 +415,6 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
             ],
           ],
         ),
-      ),
     );
   }
 
@@ -362,16 +434,33 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
         severityColor = infoColor;
     }
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Yellow Meter',
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFFAFAFA)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: warningColor.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Yellow Meter',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -440,7 +529,6 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
             ),
           ],
         ),
-      ),
     );
   }
 
@@ -449,17 +537,34 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
     final moistureColor = _getMoistureColor(moisture);
     final moistureStatus = _getMoistureStatus(moisture);
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.water_drop, color: moistureColor, size: 24),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFFAFAFA)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: moistureColor.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.water_drop, color: moistureColor, size: 24),
                 const SizedBox(width: 8),
                 const Text(
                   'Soil Moisture',
@@ -506,21 +611,37 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
             ),
           ],
         ),
-      ),
     );
   }
 
   Widget _buildDiagnosisCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Diagnosis',
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFFAFAFA)],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Diagnosis',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -572,28 +693,43 @@ class _DiagnosticScreenState extends State<DiagnosticScreen> {
             ),
           ],
         ),
-      ),
     );
   }
 
   Widget _buildWarningCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Icon(Icons.warning, color: warningColor, size: 24),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                _warning!,
-                style: const TextStyle(color: textColor, fontSize: 14),
-              ),
-            ),
-          ],
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFFAFAFA)],
         ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: warningColor.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.warning, color: warningColor, size: 24),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              _warning!,
+              style: const TextStyle(color: textColor, fontSize: 14),
+            ),
+          ),
+        ],
       ),
     );
   }

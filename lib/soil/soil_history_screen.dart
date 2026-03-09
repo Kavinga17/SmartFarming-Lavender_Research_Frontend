@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../services/soil_backend_service.dart';
 import 'diagnostic_screen.dart';
+import 'soil_notification_popup.dart';
 
 class SoilHistoryScreen extends StatefulWidget {
   const SoilHistoryScreen({super.key});
@@ -78,40 +79,123 @@ class _SoilHistoryScreenState extends State<SoilHistoryScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        title: const Text(
-          'Soil History',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-        ),
-        backgroundColor: primaryPurple,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white.withOpacity(0.7),
-          tabs: const [
-            Tab(text: 'Diagnostics', icon: Icon(Icons.science)),
-            Tab(text: 'Irrigation', icon: Icon(Icons.water_drop)),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            // Custom tab bar matching app style
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TabBar(
+                controller: _tabController,
+                indicator: BoxDecoration(
+                  color: primaryPurple,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                labelColor: Colors.white,
+                unselectedLabelColor: textGrey,
+                labelStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                ),
+                dividerHeight: 0,
+                tabs: const [
+                  Tab(text: 'Diagnostics', icon: Icon(Icons.science, size: 18)),
+                  Tab(text: 'Irrigation', icon: Icon(Icons.water_drop, size: 18)),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator(color: primaryPurple))
+                  : TabBarView(
+                      controller: _tabController,
+                      children: [_buildDiagnosticTab(), _buildIrrigationTab()],
+                    ),
+            ),
           ],
         ),
-        actions: [
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      child: Row(
+        children: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_ios, color: textDark, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
+          RichText(
+            text: const TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Lavender ',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: textDark,
+                  ),
+                ),
+                TextSpan(
+                  text: 'AI',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w400,
+                    color: textDark,
+                  ),
+                ),
+                TextSpan(
+                  text: ' 🌿',
+                  style: TextStyle(fontSize: 18),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          // Page context badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: primaryPurple.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.history, size: 14, color: primaryPurple),
+                const SizedBox(width: 4),
+                Text(
+                  'History',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: primaryPurple,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            color: textDark,
             onPressed: _loadAllHistory,
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: primaryPurple))
-          : TabBarView(
-              controller: _tabController,
-              children: [_buildDiagnosticTab(), _buildIrrigationTab()],
-            ),
     );
   }
 
@@ -180,13 +264,22 @@ class _SoilHistoryScreenState extends State<SoilHistoryScreen>
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: cardColor,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFFAFAFA)],
+        ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: statusColor.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -396,14 +489,23 @@ class _SoilHistoryScreenState extends State<SoilHistoryScreen>
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFFAFAFA)],
+        ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: primaryPurple.withOpacity(0.3), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: primaryPurple.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -434,7 +536,7 @@ class _SoilHistoryScreenState extends State<SoilHistoryScreen>
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF2C3E50),
+                      color: textDark,
                     ),
                   ),
                 ],
@@ -490,7 +592,7 @@ class _SoilHistoryScreenState extends State<SoilHistoryScreen>
                 child: Text(
                   'Next: ${_formatIST(schedule['nextWatering'] ?? '')}',
                   style: const TextStyle(
-                    color: Color(0xFF2C3E50),
+                    color: textDark,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -538,12 +640,14 @@ class _SoilHistoryScreenState extends State<SoilHistoryScreen>
               Navigator.pop(context); // Close loading
 
               if (result != null && result['success'] == true) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: const Text('Routine terminated successfully'),
-                    backgroundColor: successGreen,
-                    behavior: SnackBarBehavior.floating,
-                  ),
+                if (!mounted) return;
+                showSoilNotification(
+                  context,
+                  diagnosis: 'ROUTINE_TERMINATED',
+                  action: 'Irrigation routine has been terminated.',
+                  routineTerminated: true,
+                  recommendation: result['reason']?.toString() ??
+                      'User terminated from history screen',
                 );
                 _loadAllHistory(); // Refresh
               } else {
@@ -576,14 +680,14 @@ class _SoilHistoryScreenState extends State<SoilHistoryScreen>
             width: 100,
             child: Text(
               label,
-              style: const TextStyle(color: Color(0xFF95A5A6), fontSize: 14),
+              style: const TextStyle(color: textGrey, fontSize: 14),
             ),
           ),
           Expanded(
             child: Text(
               value,
               style: const TextStyle(
-                color: Color(0xFF2C3E50),
+                color: textDark,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
@@ -654,12 +758,21 @@ class _SoilHistoryScreenState extends State<SoilHistoryScreen>
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFFCFCFC)],
+        ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: cardColor.withOpacity(0.15),
             blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.08),
+            blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],
@@ -826,14 +939,14 @@ class _SoilHistoryScreenState extends State<SoilHistoryScreen>
             width: 100,
             child: Text(
               label,
-              style: const TextStyle(color: Color(0xFF95A5A6), fontSize: 13),
+              style: const TextStyle(color: textGrey, fontSize: 13),
             ),
           ),
           Expanded(
             child: Text(
               value,
               style: const TextStyle(
-                color: Color(0xFF2C3E50),
+                color: textDark,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),

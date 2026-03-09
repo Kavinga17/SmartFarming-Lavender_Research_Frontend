@@ -5,6 +5,7 @@ import '../services/soil_backend_service.dart';
 import 'irrigation_setup_screen.dart';
 import 'diagnostic_screen.dart';
 import 'soil_history_screen.dart';
+import 'soil_notification_popup.dart';
 
 class SoilHealthDashboard extends StatefulWidget {
   final double? initialMoisture;
@@ -33,6 +34,8 @@ class _SoilHealthDashboardState extends State<SoilHealthDashboard> {
   Map<String, dynamic>? _lastAnalysis;
   Map<String, dynamic>? _currentRoutine; // Added this variable
 
+  bool _isServerConnected = false;
+
   @override
   void initState() {
     super.initState();
@@ -45,8 +48,12 @@ class _SoilHealthDashboardState extends State<SoilHealthDashboard> {
     await _checkIrrigationRoutine();
     await _fetchLatestAnalysis();
     _currentRoutine =
-        await SoilBackendService.getCurrentRoutine(); // Added this line
-    setState(() {}); // Refresh UI
+        await SoilBackendService.getCurrentRoutine();
+    // Check server connection for header pill
+    final connected = await SoilBackendService.testConnection();
+    setState(() {
+      _isServerConnected = connected;
+    });
   }
 
   Future<void> _fetchSensorData() async {
@@ -183,7 +190,34 @@ class _SoilHealthDashboardState extends State<SoilHealthDashboard> {
           _isLoading = false;
         });
 
-        // Navigate to diagnostic screen
+        // Show diagnosis notification popup
+        final diagnosis = result['diagnosis']?.toString() ?? 'UNKNOWN_ISSUE';
+        final actionMsg = result['action']?.toString() ?? 'Check your plant';
+        final wasTerminated = result['terminateRoutine'] == true;
+        final rec = result['recommendation']?.toString();
+
+        if (!mounted) return;
+        showSoilNotification(
+          context,
+          diagnosis: diagnosis,
+          action: actionMsg,
+          routineTerminated: wasTerminated,
+          recommendation: rec,
+          onViewDetails: () {
+            if (!mounted) return;
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DiagnosticScreen(
+                  analysisResult: result,
+                  sensorData: {'moisture': _currentMoisture},
+                ),
+              ),
+            ).then((_) => _fetchLatestAnalysis());
+          },
+        );
+
+        // Also navigate to diagnostic screen after popup
         if (!mounted) return;
         Navigator.push(
           context,
@@ -220,101 +254,121 @@ class _SoilHealthDashboardState extends State<SoilHealthDashboard> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: backgroundColor,
-      appBar: AppBar(
-        title: const Text('Soil Health', style: TextStyle(color: Colors.white)),
-        backgroundColor: primaryPurple,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _loadData,
+                color: primaryPurple,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _buildMoistureCard(),
+                      const SizedBox(height: 16),
+
+                      // Active routine summary (if exists)
+                      if (_currentRoutine != null) ...[
+                        _buildActiveRoutineSummary(),
+                        const SizedBox(height: 16),
+                      ],
+
+                      _buildActionCards(),
+                      if (_lastAnalysis != null) ...[
+                        const SizedBox(height: 16),
+                        _buildRecentAnalysis(),
+                      ],
+                      const SizedBox(height: 16),
+                      _buildHistoryButton(),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
-        actions: [
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      child: Row(
+        children: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white),
+            icon: const Icon(Icons.arrow_back_ios, color: textDark, size: 20),
+            onPressed: () => Navigator.pop(context),
+          ),
+          RichText(
+            text: const TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Lavender ',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: textDark,
+                  ),
+                ),
+                TextSpan(
+                  text: 'AI',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w400,
+                    color: textDark,
+                  ),
+                ),
+                TextSpan(
+                  text: ' 🌿',
+                  style: TextStyle(fontSize: 18),
+                ),
+              ],
+            ),
+          ),
+          const Spacer(),
+          // Connection status pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _isServerConnected
+                  ? successGreen.withOpacity(0.1)
+                  : Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: _isServerConnected ? successGreen : Colors.grey,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  _isServerConnected ? 'Live' : 'Offline',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: _isServerConnected ? successGreen : Colors.grey,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            color: textDark,
             onPressed: _loadData,
           ),
         ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        color: primaryPurple,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              // Connection Status Indicator
-              FutureBuilder<bool>(
-                future: SoilBackendService.testConnection(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasData && snapshot.data == true) {
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: successGreen.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: successGreen),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.check_circle,
-                            color: successGreen,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Connected to backend',
-                            style: TextStyle(color: successGreen, fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: warningAmber.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: warningAmber),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.warning, color: warningAmber, size: 16),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Offline - using cached data',
-                          style: TextStyle(color: warningAmber, fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-
-              _buildMoistureCard(),
-              const SizedBox(height: 16),
-
-              // Active routine summary (if exists)
-              if (_currentRoutine != null) ...[
-                _buildActiveRoutineSummary(),
-                const SizedBox(height: 16),
-              ],
-
-              _buildActionCards(),
-              if (_lastAnalysis != null) ...[
-                const SizedBox(height: 16),
-                _buildRecentAnalysis(),
-              ],
-              const SizedBox(height: 16),
-              _buildHistoryButton(),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -325,13 +379,22 @@ class _SoilHealthDashboardState extends State<SoilHealthDashboard> {
       return Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: cardColor,
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.white, Color(0xFFFAFAFA)],
+          ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: warningAmber.withOpacity(0.15),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
@@ -382,13 +445,22 @@ class _SoilHealthDashboardState extends State<SoilHealthDashboard> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: cardColor,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFFAFAFA)],
+        ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: moistureColor.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -534,13 +606,22 @@ class _SoilHealthDashboardState extends State<SoilHealthDashboard> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: cardColor,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFFAFAFA)],
+        ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: color.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -590,13 +671,22 @@ class _SoilHealthDashboardState extends State<SoilHealthDashboard> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: cardColor,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.white, Color(0xFFFAFAFA)],
+        ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+            color: primaryPurple.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -692,10 +782,17 @@ class _SoilHealthDashboardState extends State<SoilHealthDashboard> {
                   foregroundColor: Colors.white,
                   minimumSize: const Size(120, 36),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                 ),
-                child: const Text('View Details'),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('View Details', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    SizedBox(width: 4),
+                    Icon(Icons.arrow_forward, size: 16),
+                  ],
+                ),
               ),
             ],
           ),
@@ -705,8 +802,23 @@ class _SoilHealthDashboardState extends State<SoilHealthDashboard> {
   }
 
   Widget _buildHistoryButton() {
-    return SizedBox(
+    return Container(
       width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF9D6FFF), Color(0xFF7C3AED)],
+        ),
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [
+          BoxShadow(
+            color: primaryPurple.withOpacity(0.4),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: ElevatedButton.icon(
         onPressed: () {
           Navigator.push(
@@ -717,13 +829,14 @@ class _SoilHealthDashboardState extends State<SoilHealthDashboard> {
         icon: const Icon(Icons.history, color: Colors.white),
         label: const Text('View Full History'),
         style: ElevatedButton.styleFrom(
-          backgroundColor: primaryPurple,
+          backgroundColor: Colors.transparent,
+          shadowColor: Colors.transparent,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 14),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(30),
           ),
-          elevation: 4,
+          elevation: 0,
         ),
       ),
     );
