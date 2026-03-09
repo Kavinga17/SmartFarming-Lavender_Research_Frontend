@@ -10,6 +10,9 @@ import 'activity_history_screen.dart';
 import 'lighting_control_screen.dart';
 import '../pages/MainMenu.dart';
 import '../soil/soil_health_dashboard.dart';
+import '../services/climate_api_service.dart';
+import '../services/climate_data_service.dart';
+import '../services/soil_backend_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -29,6 +32,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<ActivityItem> _recentActivities = [];
   bool _isLoadingActivities = true;
 
+  // Monitor tab data
+  bool _isLoadingMonitor = true;
+  ClimatePrediction? _latestClimate;
+  double? _latestSoilMoisture;
+  Map<String, dynamic>? _latestDiseaseScan;
+  bool _climateConnected = false;
+  bool _soilConnected = false;
+
+  // Alerts tab data
+  bool _isLoadingAlerts = true;
+  List<Map<String, dynamic>> _alerts = [];
+
   // Colors
   static const Color backgroundColor = Color(0xFFF8F9FA);
   static const Color primaryPurple = Color(0xFF8B5CF6);
@@ -44,6 +59,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     _loadUserProfile();
     _loadRecentActivities();
+    _loadMonitorData();
+    _loadAlerts();
   }
 
   Future<void> _loadRecentActivities() async {
@@ -156,6 +173,192 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _loadMonitorData() async {
+    if (mounted) setState(() => _isLoadingMonitor = true);
+    try {
+      // Climate data
+      try {
+        final reading = await ClimateDataService.getLatestReading();
+        _latestClimate = reading;
+        _climateConnected = reading != null;
+      } catch (e) {
+        _climateConnected = false;
+        print('⚠️ Monitor: Climate data load failed: $e');
+      }
+
+      // Soil moisture
+      try {
+        final moisture = await SoilBackendService.getMoisture();
+        _latestSoilMoisture = moisture;
+        _soilConnected = moisture != null;
+      } catch (e) {
+        _soilConnected = false;
+        print('⚠️ Monitor: Soil data load failed: $e');
+      }
+
+      // Latest disease scan
+      try {
+        final uid = _auth.currentUser?.uid;
+        Query<Map<String, dynamic>> q = _firestore
+            .collection('lavender_detections')
+            .orderBy('timestamp', descending: true)
+            .limit(1);
+        if (uid != null) {
+          q = _firestore
+              .collection('lavender_detections')
+              .where('user_id', isEqualTo: uid)
+              .orderBy('timestamp', descending: true)
+              .limit(1);
+        }
+        final snap = await q.get();
+        if (snap.docs.isNotEmpty) {
+          _latestDiseaseScan = snap.docs.first.data();
+        }
+      } catch (e) {
+        print('⚠️ Monitor: Disease data load failed: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoadingMonitor = false);
+    }
+  }
+
+  Future<void> _loadAlerts() async {
+    if (mounted) setState(() => _isLoadingAlerts = true);
+    try {
+      final alertsList = <Map<String, dynamic>>[];
+      final uid = _auth.currentUser?.uid;
+
+      // Disease alerts — scans where disease was found
+      try {
+        Query<Map<String, dynamic>> q = _firestore
+            .collection('lavender_detections')
+            .orderBy('timestamp', descending: true)
+            .limit(20);
+        if (uid != null) {
+          q = _firestore
+              .collection('lavender_detections')
+              .where('user_id', isEqualTo: uid)
+              .orderBy('timestamp', descending: true)
+              .limit(20);
+        }
+        final snap = await q.get();
+        for (final doc in snap.docs) {
+          final d = doc.data();
+          if (d['has_disease'] == true) {
+            final ts = d['timestamp'] ?? d['date_time'];
+            DateTime? time;
+            if (ts is Timestamp) time = ts.toDate();
+            alertsList.add({
+              'type': 'disease',
+              'severity': 'high',
+              'title': 'Disease Detected',
+              'subtitle': '${d['overall_status'] ?? 'Unknown'} — ${d['disease_count'] ?? 0} diseased plant(s)',
+              'time': time ?? DateTime.now(),
+              'icon': Icons.bug_report,
+              'color': const Color(0xFFEF4444),
+            });
+          }
+        }
+      } catch (e) {
+        print('⚠️ Alerts: Disease query failed: $e');
+      }
+
+      // Climate alerts — temperature or humidity out of range
+      try {
+        Query<Map<String, dynamic>> q = _firestore
+            .collection('climate_readings')
+            .orderBy('timestamp', descending: true)
+            .limit(20);
+        if (uid != null) {
+          q = _firestore
+              .collection('climate_readings')
+              .where('user_id', isEqualTo: uid)
+              .orderBy('timestamp', descending: true)
+              .limit(20);
+        }
+        final snap = await q.get();
+        for (final doc in snap.docs) {
+          final d = doc.data();
+          final airTemp = (d['air_temp'] as num?)?.toDouble() ?? 0;
+          final humidity = (d['humidity'] as num?)?.toDouble() ?? 0;
+          final ts = d['timestamp'];
+          DateTime? time;
+          if (ts is Timestamp) time = ts.toDate();
+
+          // Lavender ideal: 15-30°C, 40-60% humidity
+          if (airTemp > 35 || airTemp < 10) {
+            alertsList.add({
+              'type': 'climate',
+              'severity': airTemp > 40 || airTemp < 5 ? 'high' : 'medium',
+              'title': airTemp > 35 ? 'High Temperature Alert' : 'Low Temperature Alert',
+              'subtitle': 'Temperature at ${airTemp.toStringAsFixed(1)}°C (ideal: 15-30°C)',
+              'time': time ?? DateTime.now(),
+              'icon': Icons.thermostat,
+              'color': const Color(0xFFEF4444),
+            });
+          }
+          if (humidity > 80 || humidity < 30) {
+            alertsList.add({
+              'type': 'climate',
+              'severity': humidity > 90 || humidity < 20 ? 'high' : 'medium',
+              'title': humidity > 80 ? 'High Humidity Alert' : 'Low Humidity Alert',
+              'subtitle': 'Humidity at ${humidity.toStringAsFixed(1)}% (ideal: 40-60%)',
+              'time': time ?? DateTime.now(),
+              'icon': Icons.water_drop,
+              'color': const Color(0xFF3B82F6),
+            });
+          }
+        }
+      } catch (e) {
+        print('⚠️ Alerts: Climate query failed: $e');
+      }
+
+      // Soil alerts from analyses
+      try {
+        final analyses = await SoilBackendService.getAnalysisHistory(limit: 10);
+        for (final a in analyses) {
+          final diagnosis = a['diagnosis'] as Map<String, dynamic>?;
+          if (diagnosis != null) {
+            final overall = diagnosis['overall_health'] as String? ?? '';
+            if (overall.toLowerCase().contains('poor') ||
+                overall.toLowerCase().contains('critical') ||
+                overall.toLowerCase().contains('warning') ||
+                overall.toLowerCase().contains('low')) {
+              final ts = a['createdAt'];
+              DateTime? time;
+              if (ts is String) time = DateTime.tryParse(ts);
+              if (ts is Timestamp) time = ts.toDate();
+              alertsList.add({
+                'type': 'soil',
+                'severity': overall.toLowerCase().contains('critical') ? 'high' : 'medium',
+                'title': 'Soil Health Warning',
+                'subtitle': overall,
+                'time': time ?? DateTime.now(),
+                'icon': Icons.eco,
+                'color': const Color(0xFFF59E0B),
+              });
+            }
+          }
+        }
+      } catch (e) {
+        print('⚠️ Alerts: Soil analysis query failed: $e');
+      }
+
+      // Sort by time descending
+      alertsList.sort((a, b) => (b['time'] as DateTime).compareTo(a['time'] as DateTime));
+
+      if (mounted) {
+        setState(() {
+          _alerts = alertsList;
+          _isLoadingAlerts = false;
+        });
+      }
+    } catch (e) {
+      print('⚠️ Alerts load failed: $e');
+      if (mounted) setState(() => _isLoadingAlerts = false);
+    }
+  }
+
   Future<void> _loadUserProfile() async {
     try {
       User? user = _auth.currentUser;
@@ -188,109 +391,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _buildTabNavigation(),
             // Main Content
             Expanded(
-              child: RefreshIndicator(
-                onRefresh: () async {
-                  await Future.wait([
-                    _loadUserProfile(),
-                    _loadRecentActivities(),
-                  ]);
-                },
-                color: primaryGreen,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    // Lavender Plant Health Card
-                    _buildHealthCard(),
-                    const SizedBox(height: 16),
-                    // Disease Detection Card
-                    _buildFeatureCard(
-                      icon: Icons.bug_report_outlined,
-                      iconColor: primaryPurple,
-                      iconBgColor: primaryPurple.withOpacity(0.1),
-                      title: 'Disease Detection',
-                      subtitle: 'AI-powered plant health monitoring',
-                      badge: '2 Scans Today',
-                      badgeColor: primaryPurple,
-                      actionText: 'Tap to Scan',
-                      onTap: () {
-                        final uid = _auth.currentUser?.uid ?? '';
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => Home(userId: uid),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    // Soil Health Card
-                    _buildFeatureCard(
-                      icon: Icons.eco_outlined,
-                      iconColor: primaryOrange,
-                      iconBgColor: primaryOrange.withOpacity(0.1),
-                      title: 'Soil Health',
-                      subtitle: 'AI-powered soil health monitoring',
-                      badge: 'Moisture: 65%',
-                      badgeColor: primaryOrange,
-                      actionText: 'Run Diagnostic',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const SoilHealthDashboard(),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    // Climate Control Card
-                    _buildFeatureCard(
-                      icon: Icons.thermostat_outlined,
-                      iconColor: const Color(0xFFEF4444),
-                      iconBgColor: const Color(0xFFEF4444).withOpacity(0.1),
-                      title: 'Climate Control',
-                      subtitle: 'Temperature & humidity monitoring',
-                      badge: 'Temp: 24°C',
-                      badgeColor: primaryOrange,
-                      actionText: 'View Climate',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const ClimateScreen()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    // Lighting System Card
-                    _buildFeatureCard(
-                      icon: Icons.wb_sunny_outlined,
-                      iconColor: primaryYellow,
-                      iconBgColor: primaryYellow.withOpacity(0.1),
-                      title: 'Lighting System',
-                      subtitle: 'Smart light management',
-                      badge: 'Status: Auto',
-                      badgeColor: primaryYellow,
-                      actionText: 'Control Lights',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const LightingControlScreen()),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    // Stats Row
-                    _buildStatsRow(),
-                    const SizedBox(height: 20),
-                    // Recent Activity
-                    _buildRecentActivity(),
-                    const SizedBox(height: 20),
-                  ],
-                ),
-              ),
-              ),
+              child: _buildTabContent(),
             ),
           ],
         ),
@@ -312,6 +413,1072 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final hours = (minutesAgo / 60).floor();
       return '$hours hour${hours > 1 ? 's' : ''} ago';
     }
+  }
+
+  // =====================================================================
+  //  TAB CONTENT SWITCHER
+  // =====================================================================
+
+  Widget _buildTabContent() {
+    switch (_selectedTabIndex) {
+      case 0:
+        return _buildHomeTab();
+      case 1:
+        return _buildMonitorTab();
+      case 2:
+        return _buildControlTab();
+      case 3:
+        return _buildAlertsTab();
+      default:
+        return _buildHomeTab();
+    }
+  }
+
+  // =====================================================================
+  //  HOME TAB  (original dashboard content)
+  // =====================================================================
+
+  Widget _buildHomeTab() {
+    return RefreshIndicator(
+      onRefresh: () async {
+        await Future.wait([
+          _loadUserProfile(),
+          _loadRecentActivities(),
+          _loadMonitorData(),
+        ]);
+      },
+      color: primaryGreen,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _buildHealthCard(),
+            const SizedBox(height: 16),
+            _buildFeatureCard(
+              icon: Icons.bug_report_outlined,
+              iconColor: primaryPurple,
+              iconBgColor: primaryPurple.withOpacity(0.1),
+              title: 'Disease Detection',
+              subtitle: 'AI-powered plant health monitoring',
+              badge: '2 Scans Today',
+              badgeColor: primaryPurple,
+              actionText: 'Tap to Scan',
+              onTap: () {
+                final uid = _auth.currentUser?.uid ?? '';
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => Home(userId: uid),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildFeatureCard(
+              icon: Icons.eco_outlined,
+              iconColor: primaryOrange,
+              iconBgColor: primaryOrange.withOpacity(0.1),
+              title: 'Soil Health',
+              subtitle: 'AI-powered soil health monitoring',
+              badge: 'Moisture: 65%',
+              badgeColor: primaryOrange,
+              actionText: 'Run Diagnostic',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SoilHealthDashboard(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildFeatureCard(
+              icon: Icons.thermostat_outlined,
+              iconColor: const Color(0xFFEF4444),
+              iconBgColor: const Color(0xFFEF4444).withOpacity(0.1),
+              title: 'Climate Control',
+              subtitle: 'Temperature & humidity monitoring',
+              badge: 'Temp: 24°C',
+              badgeColor: primaryOrange,
+              actionText: 'View Climate',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ClimateScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            _buildFeatureCard(
+              icon: Icons.wb_sunny_outlined,
+              iconColor: primaryYellow,
+              iconBgColor: primaryYellow.withOpacity(0.1),
+              title: 'Lighting System',
+              subtitle: 'Smart light management',
+              badge: 'Status: Auto',
+              badgeColor: primaryYellow,
+              actionText: 'Control Lights',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LightingControlScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 20),
+            _buildStatsRow(),
+            const SizedBox(height: 20),
+            _buildRecentActivity(),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =====================================================================
+  //  MONITOR TAB — live sensor overview from all components
+  // =====================================================================
+
+  Widget _buildMonitorTab() {
+    return RefreshIndicator(
+      onRefresh: () async {
+        await _loadMonitorData();
+      },
+      color: primaryGreen,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: _isLoadingMonitor
+            ? const Padding(
+                padding: EdgeInsets.only(top: 80),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Section: Connection Status
+                  _buildMonitorSectionHeader('System Status'),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      _buildStatusChip('Climate', _climateConnected),
+                      const SizedBox(width: 8),
+                      _buildStatusChip('Soil', _soilConnected),
+                      const SizedBox(width: 8),
+                      _buildStatusChip('Disease', _latestDiseaseScan != null),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Section: Climate Sensors
+                  _buildMonitorSectionHeader('Climate Sensors'),
+                  const SizedBox(height: 10),
+                  if (_latestClimate != null) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildSensorCard(
+                            icon: Icons.thermostat_outlined,
+                            color: const Color(0xFFEF4444),
+                            label: 'Air Temp',
+                            value: '${_latestClimate!.airTemp.toStringAsFixed(1)}°C',
+                            detail: _getClimateRangeLabel(_latestClimate!.airTemp, 15, 30, '°C'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildSensorCard(
+                            icon: Icons.water_drop_outlined,
+                            color: const Color(0xFF3B82F6),
+                            label: 'Humidity',
+                            value: '${_latestClimate!.humidity.toStringAsFixed(1)}%',
+                            detail: _getClimateRangeLabel(_latestClimate!.humidity, 40, 60, '%'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildSensorCard(
+                            icon: Icons.grass_outlined,
+                            color: const Color(0xFF8B5CF6),
+                            label: 'Soil Temp',
+                            value: '${_latestClimate!.soilTemp.toStringAsFixed(1)}°C',
+                            detail: _getClimateRangeLabel(_latestClimate!.soilTemp, 15, 25, '°C'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildSensorCard(
+                            icon: Icons.air_outlined,
+                            color: primaryGreen,
+                            label: 'Fan Speed',
+                            value: '${_latestClimate!.effectiveFanSpeed.toStringAsFixed(0)}%',
+                            detail: 'Mode: ${_latestClimate!.fanMode}',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildSensorCard(
+                      icon: Icons.cloud_outlined,
+                      color: const Color(0xFF06B6D4),
+                      label: 'Humidifier',
+                      value: _latestClimate!.humidifierLabel,
+                      detail: 'Mode: ${_latestClimate!.humidifierControlMode}',
+                    ),
+                  ] else
+                    _buildEmptyStateCard(
+                      icon: Icons.thermostat_outlined,
+                      message: 'No climate data available.\nCheck sensor connection.',
+                    ),
+
+                  const SizedBox(height: 20),
+
+                  // Section: Soil Sensors
+                  _buildMonitorSectionHeader('Soil Sensors'),
+                  const SizedBox(height: 10),
+                  if (_latestSoilMoisture != null) ...[
+                    _buildSensorCard(
+                      icon: Icons.opacity_outlined,
+                      color: primaryOrange,
+                      label: 'Soil Moisture',
+                      value: '${_latestSoilMoisture!.toStringAsFixed(1)}%',
+                      detail: _latestSoilMoisture! < 30
+                          ? 'Below ideal (30-50%)'
+                          : _latestSoilMoisture! > 50
+                              ? 'Above ideal (30-50%)'
+                              : 'Within ideal range',
+                    ),
+                  ] else
+                    _buildEmptyStateCard(
+                      icon: Icons.eco_outlined,
+                      message: 'Soil sensor offline.\nCheck ESP32 connection.',
+                    ),
+
+                  const SizedBox(height: 20),
+
+                  // Section: Disease Detection
+                  _buildMonitorSectionHeader('Latest Disease Scan'),
+                  const SizedBox(height: 10),
+                  if (_latestDiseaseScan != null) ...[
+                    _buildDiseaseMonitorCard(_latestDiseaseScan!),
+                  ] else
+                    _buildEmptyStateCard(
+                      icon: Icons.bug_report_outlined,
+                      message: 'No disease scans yet.\nTap Disease Detection to scan.',
+                    ),
+
+                  const SizedBox(height: 20),
+                ],
+              ),
+      ),
+    );
+  }
+
+  String _getClimateRangeLabel(double value, double low, double high, String unit) {
+    if (value < low) return 'Below ideal (${low.toInt()}-${high.toInt()}$unit)';
+    if (value > high) return 'Above ideal (${low.toInt()}-${high.toInt()}$unit)';
+    return 'Within ideal range';
+  }
+
+  Widget _buildMonitorSectionHeader(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.bold,
+        color: textDark,
+      ),
+    );
+  }
+
+  Widget _buildStatusChip(String label, bool connected) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: connected
+            ? primaryGreen.withOpacity(0.1)
+            : const Color(0xFFEF4444).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: connected
+              ? primaryGreen.withOpacity(0.3)
+              : const Color(0xFFEF4444).withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: connected ? primaryGreen : const Color(0xFFEF4444),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: connected ? primaryGreen : const Color(0xFFEF4444),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSensorCard({
+    required IconData icon,
+    required Color color,
+    required String label,
+    required String value,
+    String? detail,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.12),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.06),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: textGrey,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: textDark,
+                  ),
+                ),
+                if (detail != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    detail,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: detail.contains('Below') || detail.contains('Above')
+                          ? const Color(0xFFF59E0B)
+                          : primaryGreen,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyStateCard({
+    required IconData icon,
+    required String message,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: textGrey.withOpacity(0.4), size: 40),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              color: textGrey,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiseaseMonitorCard(Map<String, dynamic> scan) {
+    final hasDisease = scan['has_disease'] == true;
+    final status = scan['overall_status'] as String? ?? 'Unknown';
+    final diseaseCount = (scan['disease_count'] as num?)?.toInt() ?? 0;
+    final healthyCount = (scan['healthy_count'] as num?)?.toInt() ?? 0;
+    final totalCount = (scan['detection_count'] as num?)?.toInt() ?? 0;
+    final ts = scan['timestamp'] ?? scan['date_time'];
+    DateTime? time;
+    if (ts is Timestamp) time = ts.toDate();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: hasDisease
+              ? const Color(0xFFEF4444).withOpacity(0.3)
+              : primaryGreen.withOpacity(0.3),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: (hasDisease ? const Color(0xFFEF4444) : primaryGreen)
+                .withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                hasDisease ? Icons.warning_amber : Icons.check_circle_outline,
+                color: hasDisease ? const Color(0xFFEF4444) : primaryGreen,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  status,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: hasDisease ? const Color(0xFFEF4444) : primaryGreen,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildDiseaseStatPill('Total', totalCount, textDark),
+              _buildDiseaseStatPill('Diseased', diseaseCount, const Color(0xFFEF4444)),
+              _buildDiseaseStatPill('Healthy', healthyCount, primaryGreen),
+            ],
+          ),
+          if (time != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Scanned: ${_formatActivityTimeAgo(time)}',
+              style: const TextStyle(fontSize: 11, color: textGrey),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDiseaseStatPill(String label, int count, Color color) {
+    return Column(
+      children: [
+        Text(
+          '$count',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 11, color: textGrey),
+        ),
+      ],
+    );
+  }
+
+  // =====================================================================
+  //  CONTROL TAB — quick actions for all components
+  // =====================================================================
+
+  Widget _buildControlTab() {
+    return RefreshIndicator(
+      onRefresh: () async {
+        await _loadMonitorData();
+      },
+      color: primaryGreen,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Climate Control Section
+            _buildMonitorSectionHeader('Climate Control'),
+            const SizedBox(height: 10),
+            _buildControlActionCard(
+              icon: Icons.thermostat_outlined,
+              color: const Color(0xFFEF4444),
+              title: 'Climate System',
+              subtitle: _latestClimate != null
+                  ? 'Fan: ${_latestClimate!.fanMode} · Humidifier: ${_latestClimate!.humidifierControlMode}'
+                  : 'Not connected',
+              actionLabel: 'Open Climate Control',
+              onAction: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ClimateScreen()),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            // Quick climate toggles
+            if (_latestClimate != null)
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildQuickToggle(
+                      icon: Icons.air,
+                      label: 'Fan Mode',
+                      currentValue: _latestClimate!.fanMode,
+                      color: const Color(0xFF3B82F6),
+                      options: ['off', 'manual', 'auto'],
+                      onChanged: (mode) async {
+                        try {
+                          await ClimateApiService.setFanMode(mode);
+                          await _loadMonitorData();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Fan mode set to $mode'),
+                                backgroundColor: primaryGreen,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                margin: const EdgeInsets.all(16),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed: $e'),
+                                backgroundColor: const Color(0xFFEF4444),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                margin: const EdgeInsets.all(16),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildQuickToggle(
+                      icon: Icons.cloud,
+                      label: 'Humidifier',
+                      currentValue: _latestClimate!.humidifierControlMode,
+                      color: const Color(0xFF06B6D4),
+                      options: ['off', 'manual', 'auto'],
+                      onChanged: (mode) async {
+                        try {
+                          await ClimateApiService.setHumidifierMode(mode);
+                          await _loadMonitorData();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Humidifier mode set to $mode'),
+                                backgroundColor: primaryGreen,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                margin: const EdgeInsets.all(16),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed: $e'),
+                                backgroundColor: const Color(0xFFEF4444),
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                margin: const EdgeInsets.all(16),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+
+            const SizedBox(height: 24),
+
+            // Soil & Irrigation Section
+            _buildMonitorSectionHeader('Soil & Irrigation'),
+            const SizedBox(height: 10),
+            _buildControlActionCard(
+              icon: Icons.eco_outlined,
+              color: primaryOrange,
+              title: 'Soil Health Dashboard',
+              subtitle: 'Manage soil analysis & irrigation routines',
+              actionLabel: 'Open Soil Dashboard',
+              onAction: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SoilHealthDashboard()),
+                );
+              },
+            ),
+
+            const SizedBox(height: 24),
+
+            // Disease Detection Section
+            _buildMonitorSectionHeader('Disease Detection'),
+            const SizedBox(height: 10),
+            _buildControlActionCard(
+              icon: Icons.bug_report_outlined,
+              color: primaryPurple,
+              title: 'Plant Scanner',
+              subtitle: 'AI-powered disease detection & monitoring',
+              actionLabel: 'Start Scanning',
+              onAction: () {
+                final uid = _auth.currentUser?.uid ?? '';
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => Home(userId: uid),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 24),
+
+            // Lighting Section
+            _buildMonitorSectionHeader('Lighting System'),
+            const SizedBox(height: 10),
+            _buildControlActionCard(
+              icon: Icons.wb_sunny_outlined,
+              color: primaryYellow,
+              title: 'Smart Lighting',
+              subtitle: 'Control greenhouse lighting zones',
+              actionLabel: 'Control Lights',
+              onAction: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LightingControlScreen()),
+                );
+              },
+            ),
+
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlActionCard({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required String actionLabel,
+    required VoidCallback onAction,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        splashColor: color.withOpacity(0.1),
+        highlightColor: color.withOpacity(0.05),
+        onTap: onAction,
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.grey.withOpacity(0.06),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: color, size: 26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: textGrey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  actionLabel,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQuickToggle({
+    required IconData icon,
+    required String label,
+    required String currentValue,
+    required Color color,
+    required List<String> options,
+    required Function(String) onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: textDark,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...options.map((opt) {
+            final isActive = currentValue.toLowerCase() == opt.toLowerCase();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: isActive ? null : () => onChanged(opt),
+                  child: Ink(
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 10),
+                    decoration: BoxDecoration(
+                      color: isActive ? color.withOpacity(0.15) : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isActive ? color.withOpacity(0.4) : Colors.grey.shade200,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        opt[0].toUpperCase() + opt.substring(1),
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                          color: isActive ? color : textGrey,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  // =====================================================================
+  //  ALERTS TAB — warnings from all components
+  // =====================================================================
+
+  Widget _buildAlertsTab() {
+    return RefreshIndicator(
+      onRefresh: () async {
+        await _loadAlerts();
+      },
+      color: primaryGreen,
+      child: _isLoadingAlerts
+          ? const SingleChildScrollView(
+              physics: AlwaysScrollableScrollPhysics(),
+              child: Padding(
+                padding: EdgeInsets.only(top: 80),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+            )
+          : _alerts.isEmpty
+              ? SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 60),
+                      Icon(Icons.check_circle_outline, color: primaryGreen.withOpacity(0.5), size: 64),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'All Clear!',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'No alerts at this time.\nAll systems are operating normally.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: textGrey,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _alerts.length + 1, // +1 for header
+                  itemBuilder: (context, index) {
+                    if (index == 0) {
+                      // Alerts summary header
+                      final highCount = _alerts.where((a) => a['severity'] == 'high').length;
+                      final mediumCount = _alerts.where((a) => a['severity'] == 'medium').length;
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Row(
+                          children: [
+                            _buildAlertCountBadge('$highCount High', const Color(0xFFEF4444)),
+                            const SizedBox(width: 8),
+                            _buildAlertCountBadge('$mediumCount Medium', const Color(0xFFF59E0B)),
+                            const SizedBox(width: 8),
+                            _buildAlertCountBadge('${_alerts.length} Total', textGrey),
+                          ],
+                        ),
+                      );
+                    }
+
+                    final alert = _alerts[index - 1];
+                    return _buildAlertCard(alert);
+                  },
+                ),
+    );
+  }
+
+  Widget _buildAlertCountBadge(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAlertCard(Map<String, dynamic> alert) {
+    final color = alert['color'] as Color;
+    final severity = alert['severity'] as String;
+    final time = alert['time'] as DateTime;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: severity == 'high'
+                ? color.withOpacity(0.4)
+                : color.withOpacity(0.2),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(alert['icon'] as IconData, color: color, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          alert['title'] as String,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: textDark,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: severity == 'high'
+                              ? const Color(0xFFEF4444).withOpacity(0.1)
+                              : const Color(0xFFF59E0B).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          severity.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: severity == 'high'
+                                ? const Color(0xFFEF4444)
+                                : const Color(0xFFF59E0B),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    alert['subtitle'] as String,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: textGrey,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    _formatActivityTimeAgo(time),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: textGrey.withOpacity(0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildHeader() {
@@ -429,7 +1596,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       {'icon': Icons.monitor_heart_outlined, 'label': 'Monitor'},
       {'icon': Icons.tune_outlined, 'label': 'Control'},
       {'icon': Icons.notifications_outlined, 'label': 'Alerts'},
-      {'icon': Icons.person_outline, 'label': 'Profile'},
     ];
 
     return Container(

@@ -2,7 +2,7 @@
 //
 // Unified soil service:
 // - ML analysis via Flask API  (POST /soil/analyze on the unified server)
-// - Sensor data from Flask /sensors  (air humidity as moisture reference)
+// - Sensor data from Arduino ESP32  (GET /moisture on the soil sensor)
 // - Firestore for analyses, routines, watering history
 // - Decision engine & irrigation logic in Dart
 
@@ -16,9 +16,15 @@ import 'package:firebase_storage/firebase_storage.dart';
 class SoilBackendService {
   // ── Flask API Server Configuration ──
   // UPDATE this to the IP of the machine running app.py (port 5000)
-  static String serverIp = '192.168.0.200';
+  static String serverIp = '192.168.0.100';
   static int serverPort = 5000;
   static String get _serverUrl => 'http://$serverIp:$serverPort';
+
+  // ── Arduino ESP32 Soil Sensor Configuration ──
+  // UPDATE this to the IP of the Arduino ESP32 running the soil moisture sensor
+  static String sensorIp = '192.168.0.200';
+  static int sensorPort = 80;
+  static String get _sensorUrl => 'http://$sensorIp:$sensorPort';
 
   static const int _timeout = 10; // seconds for normal calls
   static const int _analysisTimeout = 30; // seconds for ML analysis
@@ -54,26 +60,32 @@ class SoilBackendService {
   }
 
   // =====================================================================
-  //  MOISTURE  (from Flask /sensors — ambient humidity as reference)
+  //  MOISTURE  (from Arduino ESP32 soil sensor on port 80)
   // =====================================================================
 
-  /// Read ambient humidity from the Flask server's climate sensors.
-  /// The unified server exposes GET /sensors → {air_temp, humidity, soil_temp}.
-  /// Returns the humidity value (0-100) or null if the server is unreachable.
+  /// Read soil moisture (%) directly from the Arduino ESP32 sensor.
+  /// The Arduino exposes GET /moisture → {"moisture": <0-100>}
+  /// Returns the moisture percentage or null if the sensor is unreachable.
   static Future<double?> getMoisture() async {
     try {
       final response = await http
-          .get(Uri.parse('$_serverUrl/sensors'))
+          .get(Uri.parse('$_sensorUrl/moisture'))
           .timeout(Duration(seconds: _timeout));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final h = data['humidity'];
-        return (h is num) ? h.toDouble() : null;
+        // Arduino returns {"moisture": <int>} on success
+        // or {"error": "Sensor not connected"} when raw < 100
+        if (data['error'] != null) {
+          print('⚠️ Arduino sensor error: ${data['error']}');
+          return null;
+        }
+        final m = data['moisture'];
+        return (m is num) ? m.toDouble() : null;
       }
       return null;
     } catch (e) {
-      print('⚠️ Sensor data unavailable: $e');
+      print('⚠️ Soil sensor unavailable: $e');
       return null;
     }
   }
