@@ -16,7 +16,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 class SoilBackendService {
   // ── Flask API Server Configuration ──
   // UPDATE this to the IP of the machine running app.py (port 5000)
-  static String serverIp = '192.168.0.100';
+  static String serverIp = '192.168.0.200';
   static int serverPort = 5000;
   static String get _serverUrl => 'http://$serverIp:$serverPort';
 

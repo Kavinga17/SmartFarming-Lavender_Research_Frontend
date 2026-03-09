@@ -7,6 +7,7 @@ import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'activity_history_screen.dart';
+import 'lighting_control_screen.dart';
 import '../pages/MainMenu.dart';
 import '../soil/soil_health_dashboard.dart';
 
@@ -272,7 +273,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       badge: 'Status: Auto',
                       badgeColor: primaryYellow,
                       actionText: 'Control Lights',
-                      onTap: () {},
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const LightingControlScreen()),
+                        );
+                      },
                     ),
                     const SizedBox(height: 20),
                     // Stats Row
