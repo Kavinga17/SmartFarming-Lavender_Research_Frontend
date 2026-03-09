@@ -5,7 +5,7 @@ import 'package:flutter/rendering.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../services/climate_data_service.dart';
+import '../../services/climate_data_service.dart';
 
 // Shared colors
 const Color backgroundColor = Color(0xFFF8F9FA);

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'dart:async';
-import '../services/climate_api_service.dart';
-import '../services/climate_data_service.dart';
-import '../services/sensor_data_service.dart';
+import '../../services/climate_api_service.dart';
+import '../../services/climate_data_service.dart';
+import '../../services/climate_sensor_data_service.dart';
 
 // Colors - defined at module level
 const Color backgroundColor = Color(0xFFF8F9FA);
@@ -302,54 +302,65 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
       child: Row(
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back_ios, color: textDark, size: 20),
             onPressed: () => Navigator.pop(context),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           ),
-          RichText(
-            text: TextSpan(
-              children: [
-                const TextSpan(
-                  text: 'Lavender ',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: textDark,
+          Flexible(
+            child: RichText(
+              overflow: TextOverflow.ellipsis,
+              text: TextSpan(
+                children: [
+                  const TextSpan(
+                    text: 'Lavender ',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: textDark,
+                    ),
                   ),
-                ),
-                const TextSpan(
-                  text: 'AI',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w400,
-                    color: textDark,
+                  const TextSpan(
+                    text: 'AI',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w400,
+                      color: textDark,
+                    ),
                   ),
-                ),
-                const TextSpan(
-                  text: '🌿',
-                  style: TextStyle(fontSize: 18),
-                ),
-              ],
+                  const TextSpan(
+                    text: '🌿',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ],
+              ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 4),
           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
+            icon: const Icon(Icons.notifications_outlined, size: 22),
             color: const Color(0xFFFF7A45),
             onPressed: () {},
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            icon: const Icon(Icons.settings_outlined, size: 22),
             color: textDark,
             onPressed: () {},
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),
           IconButton(
-            icon: const Icon(Icons.menu),
+            icon: const Icon(Icons.menu, size: 22),
             color: textDark,
             onPressed: () {},
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),
         ],
       ),
@@ -447,12 +458,15 @@ class _VentingModeScreenState extends State<VentingModeScreen> {
             children: [
               Icon(icon, color: isSelected ? Colors.white : textGrey, size: 18),
               const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isSelected ? Colors.white : textDark,
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isSelected ? Colors.white : textDark,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],

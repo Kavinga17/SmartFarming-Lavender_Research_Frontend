@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'dart:math';
 import 'dart:async';
-import '../services/climate_api_service.dart';
-import '../services/climate_data_service.dart';
-import '../services/sensor_data_service.dart';
+import '../../services/climate_api_service.dart';
+import '../../services/climate_data_service.dart';
+import '../../services/climate_sensor_data_service.dart';
 
 // Colors - defined at module level
 const Color backgroundColor = Color(0xFFF8F9FA);
@@ -303,43 +303,48 @@ class _HumidityModeScreenState extends State<HumidityModeScreen> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
       child: Row(
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back_ios, color: textDark, size: 20),
             onPressed: () => Navigator.pop(context),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           ),
-          RichText(
-            text: const TextSpan(
-              children: [
-                TextSpan(
-                  text: 'Lavender ',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: textDark,
+          Flexible(
+            child: RichText(
+              overflow: TextOverflow.ellipsis,
+              text: const TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'Lavender ',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: textDark,
+                    ),
                   ),
-                ),
-                TextSpan(
-                  text: 'AI',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w400,
-                    color: textDark,
+                  TextSpan(
+                    text: 'AI',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w400,
+                      color: textDark,
+                    ),
                   ),
-                ),
-                TextSpan(
-                  text: '\ud83c\udf3f',
-                  style: TextStyle(fontSize: 18),
-                ),
-              ],
+                  TextSpan(
+                    text: '\ud83c\udf3f',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ],
+              ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 4),
           // Connection status indicator
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             decoration: BoxDecoration(
               color: _isServerConnected
                   ? primaryGreen.withOpacity(0.1)
@@ -357,7 +362,7 @@ class _HumidityModeScreenState extends State<HumidityModeScreen> {
                     shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(width: 5),
+                const SizedBox(width: 4),
                 Text(
                   _isServerConnected ? 'Live' : 'Offline',
                   style: TextStyle(
@@ -369,21 +374,26 @@ class _HumidityModeScreenState extends State<HumidityModeScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 4),
           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
+            icon: const Icon(Icons.notifications_outlined, size: 22),
             color: const Color(0xFFFF7A45),
             onPressed: () {},
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            icon: const Icon(Icons.settings_outlined, size: 22),
             color: textDark,
             onPressed: () {},
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),
           IconButton(
-            icon: const Icon(Icons.menu),
+            icon: const Icon(Icons.menu, size: 22),
             color: textDark,
             onPressed: () {},
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),
         ],
       ),

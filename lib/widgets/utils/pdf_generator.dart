@@ -3,8 +3,8 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import '../../models/report_model.dart';
-import '../../models/sensor_model.dart';
+import '../../models/lighting_report_model.dart';
+import '../../models/lighting_sensor_model.dart';
 import '../../models/lighting_model.dart';
 
 class PdfGenerator {

@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../models/lighting_model.dart';
-import '../models/sensor_model.dart';
-import '../services/lighting_api_service.dart';
-import 'diagnostic_screen.dart';
-import 'growth_stage_screen.dart';
-import 'recommendation_screen.dart';
-import 'sensor_chart_screen.dart';
+import '../../models/lighting_model.dart';
+import '../../models/lighting_sensor_model.dart';
+import '../../services/lighting_api_service.dart';
+import 'lighting_diagnostic_screen.dart';
+import 'lighting_growth_stage_screen.dart';
+import 'lighting_recommendation_screen.dart';
+import 'lighting_sensor_chart_screen.dart';
 
 class LightingControlScreen extends StatefulWidget {
   const LightingControlScreen({super.key});

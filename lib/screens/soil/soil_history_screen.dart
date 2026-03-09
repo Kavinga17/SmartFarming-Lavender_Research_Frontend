@@ -1,7 +1,7 @@
 // lib/screens/soil_history_screen.dart
 import 'package:flutter/material.dart';
-import '../services/soil_backend_service.dart';
-import 'diagnostic_screen.dart';
+import '../../services/soil_backend_service.dart';
+import 'soil_diagnostic_screen.dart';
 import 'soil_notification_popup.dart';
 
 class SoilHistoryScreen extends StatefulWidget {

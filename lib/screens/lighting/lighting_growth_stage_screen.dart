@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../models/lighting_model.dart';
-import '../services/lighting_api_service.dart';
+import '../../models/lighting_model.dart';
+import '../../services/lighting_api_service.dart';
 
 class GrowthStageScreen extends StatefulWidget {
   const GrowthStageScreen({super.key});

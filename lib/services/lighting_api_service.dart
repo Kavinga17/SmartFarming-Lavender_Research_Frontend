@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
-import '../models/sensor_model.dart';
+import '../models/lighting_sensor_model.dart';
 import '../models/lighting_model.dart';
 
 class LightingApiService {

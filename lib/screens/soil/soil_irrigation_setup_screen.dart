@@ -1,6 +1,6 @@
 // lib/screens/irrigation_setup_screen.dart
 import 'package:flutter/material.dart';
-import '../services/soil_backend_service.dart';
+import '../../services/soil_backend_service.dart';
 import 'soil_notification_popup.dart';
 
 class IrrigationSetupScreen extends StatefulWidget {

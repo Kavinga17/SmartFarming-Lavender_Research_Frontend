@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../services/diagnostic_history.dart';
+import '../../services/soil_diagnostic_history.dart';
 
 class DiagnosticScreen extends StatefulWidget {
   final Map<String, dynamic> analysisResult;

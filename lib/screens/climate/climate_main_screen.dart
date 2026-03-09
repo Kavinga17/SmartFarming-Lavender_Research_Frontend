@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:ui' as ui;
 import 'dart:async';
-import 'venting_mode_screen.dart';
-import 'analytics_report_screen.dart';
-import 'humidity_mode_screen.dart';
-import 'activity_history_screen.dart';
-import '../services/climate_api_service.dart';
-import '../services/climate_data_service.dart';
-import '../services/sensor_data_service.dart';
+import 'climate_venting_mode_screen.dart';
+import 'climate_analytics_report_screen.dart';
+import 'climate_humidity_mode_screen.dart';
+import '../common/common_activity_history_screen.dart';
+import '../../services/climate_api_service.dart';
+import '../../services/climate_data_service.dart';
+import '../../services/climate_sensor_data_service.dart';
 
 class ClimateScreen extends StatefulWidget {
   const ClimateScreen({super.key});
@@ -459,43 +459,48 @@ class _ClimateScreenState extends State<ClimateScreen> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
       child: Row(
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back_ios, color: textDark, size: 20),
             onPressed: () => Navigator.pop(context),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
           ),
-          RichText(
-            text: TextSpan(
-              children: [
-                const TextSpan(
-                  text: 'Lavender ',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: textDark,
+          Flexible(
+            child: RichText(
+              overflow: TextOverflow.ellipsis,
+              text: TextSpan(
+                children: [
+                  const TextSpan(
+                    text: 'Lavender ',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: textDark,
+                    ),
                   ),
-                ),
-                const TextSpan(
-                  text: 'AI',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w400,
-                    color: textDark,
+                  const TextSpan(
+                    text: 'AI',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w400,
+                      color: textDark,
+                    ),
                   ),
-                ),
-                const TextSpan(
-                  text: '🌿',
-                  style: TextStyle(fontSize: 18),
-                ),
-              ],
+                  const TextSpan(
+                    text: '🌿',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ],
+              ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 4),
           // Connection status indicator
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             decoration: BoxDecoration(
               color: _isServerConnected
                   ? primaryGreen.withOpacity(0.1)
@@ -513,7 +518,7 @@ class _ClimateScreenState extends State<ClimateScreen> {
                     shape: BoxShape.circle,
                   ),
                 ),
-                const SizedBox(width: 5),
+                const SizedBox(width: 4),
                 Text(
                   _isServerConnected ? 'Live' : 'Offline',
                   style: TextStyle(
@@ -525,21 +530,26 @@ class _ClimateScreenState extends State<ClimateScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 4),
           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
+            icon: const Icon(Icons.notifications_outlined, size: 22),
             color: primaryOrange,
             onPressed: () {},
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            icon: const Icon(Icons.settings_outlined, size: 22),
             color: textDark,
             onPressed: () {},
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),
           IconButton(
-            icon: const Icon(Icons.menu),
+            icon: const Icon(Icons.menu, size: 22),
             color: textDark,
             onPressed: () {},
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
           ),
         ],
       ),
@@ -894,6 +904,8 @@ class _ClimateScreenState extends State<ClimateScreen> {
               color: textGrey,
             ),
             textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 2),
           Text(
@@ -903,6 +915,9 @@ class _ClimateScreenState extends State<ClimateScreen> {
               fontWeight: FontWeight.w600,
               color: textDark,
             ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 2),
           Text(
@@ -912,6 +927,8 @@ class _ClimateScreenState extends State<ClimateScreen> {
               fontWeight: FontWeight.w500,
               color: textDark,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 8),
           Container(
@@ -1136,12 +1153,13 @@ class _ClimateScreenState extends State<ClimateScreen> {
         const SizedBox(height: 12),
         // Legend
         Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildLegendItem(primaryBlue, 'Humidity'),
-            const SizedBox(width: 20),
-            _buildLegendItem(primaryPurple, 'Ventilation'),
-            const SizedBox(width: 20),
-            _buildLegendItem(primaryGreen, 'Temperature'),
+            Flexible(child: _buildLegendItem(primaryBlue, 'Humidity')),
+            const SizedBox(width: 16),
+            Flexible(child: _buildLegendItem(primaryPurple, 'Ventilation')),
+            const SizedBox(width: 16),
+            Flexible(child: _buildLegendItem(primaryGreen, 'Temperature')),
           ],
         ),
         const SizedBox(height: 16),

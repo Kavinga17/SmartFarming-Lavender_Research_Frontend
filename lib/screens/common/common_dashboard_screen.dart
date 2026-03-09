@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'climate_screen.dart';
-import 'login_screen.dart';
-import 'profile_screen.dart';
-import 'settings_screen.dart';
-import 'activity_history_screen.dart';
-import 'lighting_control_screen.dart';
-import '../pages/MainMenu.dart';
-import '../soil/soil_health_dashboard.dart';
-import '../services/climate_api_service.dart';
-import '../services/climate_data_service.dart';
-import '../services/soil_backend_service.dart';
+import '../climate/climate_main_screen.dart';
+import 'common_login_screen.dart';
+import 'common_profile_screen.dart';
+import 'common_settings_screen.dart';
+import 'common_activity_history_screen.dart';
+import '../lighting/lighting_control_screen.dart';
+import '../disease/disease_main_menu_screen.dart';
+import '../soil/soil_health_dashboard_screen.dart';
+import '../../services/climate_api_service.dart';
+import '../../services/climate_data_service.dart';
+import '../../services/soil_backend_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -44,6 +44,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoadingAlerts = true;
   List<Map<String, dynamic>> _alerts = [];
 
+  // Home card dynamic data
+  int _todayDiseaseScans = 0;
+  int _totalDiseaseScans = 0;
+  int _totalWateringEvents = 0;
+
   // Colors
   static const Color backgroundColor = Color(0xFFF8F9FA);
   static const Color primaryPurple = Color(0xFF8B5CF6);
@@ -61,6 +66,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadRecentActivities();
     _loadMonitorData();
     _loadAlerts();
+    _loadHomeCardStats();
   }
 
   Future<void> _loadRecentActivities() async {
@@ -220,6 +226,112 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } finally {
       if (mounted) setState(() => _isLoadingMonitor = false);
     }
+  }
+
+  Future<void> _loadHomeCardStats() async {
+    try {
+      final uid = _auth.currentUser?.uid;
+      final now = DateTime.now();
+      final todayStart = DateTime(now.year, now.month, now.day);
+
+      // Count today's disease scans
+      try {
+        Query<Map<String, dynamic>> q = _firestore
+            .collection('lavender_detections')
+            .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
+            .orderBy('timestamp', descending: true);
+        if (uid != null) {
+          q = _firestore
+              .collection('lavender_detections')
+              .where('user_id', isEqualTo: uid)
+              .where('timestamp', isGreaterThanOrEqualTo: Timestamp.fromDate(todayStart))
+              .orderBy('timestamp', descending: true);
+        }
+        final snap = await q.get();
+        _todayDiseaseScans = snap.docs.length;
+      } catch (e) {
+        print('⚠️ HomeStats: today disease scans failed: $e');
+      }
+
+      // Count total disease scans
+      try {
+        Query<Map<String, dynamic>> q = _firestore
+            .collection('lavender_detections')
+            .orderBy('timestamp', descending: true);
+        if (uid != null) {
+          q = _firestore
+              .collection('lavender_detections')
+              .where('user_id', isEqualTo: uid)
+              .orderBy('timestamp', descending: true);
+        }
+        final snap = await q.get();
+        _totalDiseaseScans = snap.docs.length;
+      } catch (e) {
+        print('⚠️ HomeStats: total disease scans failed: $e');
+      }
+
+      // Count total watering events
+      try {
+        final wateringHistory = await SoilBackendService.getWateringHistory(limit: 100);
+        _totalWateringEvents = wateringHistory.length;
+      } catch (e) {
+        print('⚠️ HomeStats: watering history failed: $e');
+      }
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      print('⚠️ HomeStats load failed: $e');
+    }
+  }
+
+  int _computeHealthScore() {
+    int score = 0;
+    int factors = 0;
+
+    // Climate factor (40% weight): temp in 15-30°C range, humidity in 40-60%
+    if (_latestClimate != null) {
+      double tempScore = 100;
+      final temp = _latestClimate!.airTemp;
+      if (temp < 15) {
+        tempScore = (temp / 15 * 100).clamp(0, 100);
+      } else if (temp > 30) {
+        tempScore = ((45 - temp) / 15 * 100).clamp(0, 100);
+      }
+
+      double humScore = 100;
+      final hum = _latestClimate!.humidity;
+      if (hum < 40) {
+        humScore = (hum / 40 * 100).clamp(0, 100);
+      } else if (hum > 60) {
+        humScore = ((80 - hum) / 20 * 100).clamp(0, 100);
+      }
+
+      score += ((tempScore + humScore) / 2).round();
+      factors++;
+    }
+
+    // Soil factor (30% weight): moisture in 30-50% range
+    if (_latestSoilMoisture != null) {
+      double soilScore = 100;
+      final m = _latestSoilMoisture!;
+      if (m < 30) {
+        soilScore = (m / 30 * 100).clamp(0, 100);
+      } else if (m > 50) {
+        soilScore = ((70 - m) / 20 * 100).clamp(0, 100);
+      }
+      score += soilScore.round();
+      factors++;
+    }
+
+    // Disease factor (30% weight): no disease = 100, has disease = 40
+    if (_latestDiseaseScan != null) {
+      final hasDisease = _latestDiseaseScan!['has_disease'] == true;
+      score += hasDisease ? 40 : 100;
+      factors++;
+    }
+
+    if (factors == 0) return 0;
+    return (score / factors).round().clamp(0, 100);
   }
 
   Future<void> _loadAlerts() async {
@@ -445,6 +557,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _loadUserProfile(),
           _loadRecentActivities(),
           _loadMonitorData(),
+          _loadHomeCardStats(),
         ]);
       },
       color: primaryGreen,
@@ -461,7 +574,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               iconBgColor: primaryPurple.withOpacity(0.1),
               title: 'Disease Detection',
               subtitle: 'AI-powered plant health monitoring',
-              badge: '2 Scans Today',
+              badge: _todayDiseaseScans > 0
+                  ? '$_todayDiseaseScans Scan${_todayDiseaseScans == 1 ? '' : 's'} Today'
+                  : 'No Scans Today',
               badgeColor: primaryPurple,
               actionText: 'Tap to Scan',
               onTap: () {
@@ -481,7 +596,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               iconBgColor: primaryOrange.withOpacity(0.1),
               title: 'Soil Health',
               subtitle: 'AI-powered soil health monitoring',
-              badge: 'Moisture: 65%',
+              badge: _latestSoilMoisture != null
+                  ? 'Moisture: ${_latestSoilMoisture!.toStringAsFixed(0)}%'
+                  : 'Moisture: --',
               badgeColor: primaryOrange,
               actionText: 'Run Diagnostic',
               onTap: () {
@@ -500,7 +617,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               iconBgColor: const Color(0xFFEF4444).withOpacity(0.1),
               title: 'Climate Control',
               subtitle: 'Temperature & humidity monitoring',
-              badge: 'Temp: 24°C',
+              badge: _latestClimate != null
+                  ? 'Temp: ${_latestClimate!.airTemp.toStringAsFixed(1)}°C'
+                  : 'Temp: --',
               badgeColor: primaryOrange,
               actionText: 'View Climate',
               onTap: () {
@@ -1656,6 +1775,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildHealthCard() {
+    // Compute dynamic health score from available data
+    final healthScore = _computeHealthScore();
+    final healthLabel = healthScore >= 80 ? 'GOOD' : healthScore >= 50 ? 'FAIR' : 'POOR';
+    final healthColor = healthScore >= 80 ? primaryGreen : healthScore >= 50 ? primaryYellow : const Color(0xFFEF4444);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1728,9 +1852,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               RichText(
                 text: TextSpan(
                   children: [
-                    const TextSpan(
-                      text: '87',
-                      style: TextStyle(
+                    TextSpan(
+                      text: '$healthScore',
+                      style: const TextStyle(
                         fontSize: 48,
                         fontWeight: FontWeight.bold,
                         color: textDark,
@@ -1758,12 +1882,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
-                  color: primaryGreen,
+                  color: healthColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
-                  'GOOD',
-                  style: TextStyle(
+                child: Text(
+                  healthLabel,
+                  style: const TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -1935,7 +2059,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: _buildStatItem(
               icon: Icons.bolt,
               iconColor: primaryPurple,
-              value: '156',
+              value: '$_totalDiseaseScans',
               label: 'Total Scans',
             ),
           ),
@@ -1943,25 +2067,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: _buildStatItem(
               icon: Icons.water_drop_outlined,
               iconColor: Colors.blue,
-              value: '2.4L',
-              label: 'Water Used',
+              value: _latestSoilMoisture != null
+                  ? '${_latestSoilMoisture!.toStringAsFixed(0)}%'
+                  : '--',
+              label: 'Moisture',
             ),
           ),
           Flexible(
             child: _buildStatItem(
               icon: Icons.thermostat_outlined,
               iconColor: primaryOrange,
-              value: '24°C',
+              value: _latestClimate != null
+                  ? '${_latestClimate!.airTemp.toStringAsFixed(1)}°'
+                  : '--',
               label: 'Temp',
             ),
           ),
           Flexible(
             child: _buildStatItem(
-              icon: Icons.wb_sunny_outlined,
+              icon: Icons.opacity,
               iconColor: primaryYellow,
-              value: '8h',
-              secondValue: '45m',
-              label: 'Light Time',
+              value: _latestClimate != null
+                  ? '${_latestClimate!.humidity.toStringAsFixed(0)}%'
+                  : '--',
+              label: 'Humidity',
             ),
           ),
         ],

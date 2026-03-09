@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:lavender_ai_app/pages/Diagnosis.dart';
-import 'package:lavender_ai_app/pages/DiagnosisData.dart';
-import 'package:lavender_ai_app/pages/Live.dart';
+import 'disease_diagnosis_screen.dart';
+import 'disease_diagnosis_data_screen.dart';
+import 'disease_live_detection_screen.dart';
 
 class Home extends StatefulWidget {
   final String userId;

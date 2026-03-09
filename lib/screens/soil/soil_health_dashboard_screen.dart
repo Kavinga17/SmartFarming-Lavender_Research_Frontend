@@ -1,9 +1,9 @@
 // lib/screens/soil_health_dashboard.dart
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../services/soil_backend_service.dart';
-import 'irrigation_setup_screen.dart';
-import 'diagnostic_screen.dart';
+import '../../services/soil_backend_service.dart';
+import 'soil_irrigation_setup_screen.dart';
+import 'soil_diagnostic_screen.dart';
 import 'soil_history_screen.dart';
 import 'soil_notification_popup.dart';
 
