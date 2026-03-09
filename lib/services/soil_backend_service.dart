@@ -12,11 +12,13 @@ import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
+import '../soil/soil_history_screen.dart';
 
 class SoilBackendService {
   // ── Flask API Server Configuration ──
   // UPDATE this to the IP of the machine running app.py (port 5000)
-  static String serverIp = '192.168.0.100';
+  static String serverIp = '10.118.213.120';
   static int serverPort = 5000;
   static String get _serverUrl => 'http://$serverIp:$serverPort';
 
@@ -31,6 +33,10 @@ class SoilBackendService {
 
   // ── Firebase Storage ──
   static final _storage = FirebaseStorage.instance;
+
+  // ── Navigation for popups ──
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
 
   // =====================================================================
   //  CONNECTION / HEALTH
@@ -121,8 +127,7 @@ class SoilBackendService {
 
       // 3 — Upload image to Firebase Storage for record-keeping
       String? imageUrl;
-      final fileName =
-          '${DateTime.now().millisecondsSinceEpoch}_${image.name}';
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_${image.name}';
       try {
         final ref = _storage.ref().child('soil_analyses/$fileName');
         await ref.putData(bytes);
@@ -157,8 +162,7 @@ class SoilBackendService {
           if (lastTs is String) {
             final lastDate = DateTime.tryParse(lastTs);
             if (lastDate != null) {
-              daysSinceLastWater =
-                  DateTime.now().difference(lastDate).inDays;
+              daysSinceLastWater = DateTime.now().difference(lastDate).inDays;
             }
           }
         }
@@ -203,6 +207,8 @@ class SoilBackendService {
       } catch (e) {
         print('⚠️ Firestore save failed (returning result anyway): $e');
       }
+
+      showDiagnosisNotification(result);
 
       return result;
     } catch (e) {
@@ -452,13 +458,11 @@ class SoilBackendService {
       if (yellowness > 60 && moisture > 70) {
         return {
           'diagnosis': 'NITROGEN_LOCKOUT',
-          'action':
-              'STOP WATERING immediately. Let soil dry for 3-5 days.',
+          'action': 'STOP WATERING immediately. Let soil dry for 3-5 days.',
           'severity': 'high',
           'requiresAction': true,
           'terminateRoutine': true,
-          'recommendation':
-              'Soil too wet, roots cannot absorb nitrogen',
+          'recommendation': 'Soil too wet, roots cannot absorb nitrogen',
         };
       }
 
@@ -503,8 +507,7 @@ class SoilBackendService {
       'severity': 'medium',
       'requiresAction': true,
       'terminateRoutine': true,
-      'userPrompt':
-          'Unable to determine issue. Please inspect plant manually.',
+      'userPrompt': 'Unable to determine issue. Please inspect plant manually.',
     };
   }
 
@@ -522,6 +525,130 @@ class SoilBackendService {
       } else if (value is Map<String, dynamic>) {
         _convertTimestamps(value);
       }
+    }
+  }
+
+  // =====================================================================
+  //  NOTIFICATION HELPER (ADD THIS AT THE END)
+  // =====================================================================
+
+  /// Shows a popup notification in the app based on diagnosis result
+  static void showDiagnosisNotification(Map<String, dynamic> result) {
+    final diagnosis = result['diagnosis'] ?? 'UNKNOWN';
+    final action = result['action'] ?? '';
+    final severity = result['severity'] ?? 'low';
+
+    String title;
+    Color color;
+    IconData icon;
+
+    // Determine title and color based on diagnosis
+    if (diagnosis.contains('LOCKOUT')) {
+      title = '🚨 NITROGEN LOCKOUT';
+      color = Colors.red;
+      icon = Icons.warning_amber_rounded;
+    } else if (diagnosis.contains('DISEASE')) {
+      title = '⚠️ DISEASE DETECTED';
+      color = Colors.orange;
+      icon = Icons.sick;
+    } else if (diagnosis.contains('UNDERWATERING')) {
+      title = '💧 UNDERWATERING';
+      color = Colors.blue;
+      icon = Icons.water_drop;
+    } else if (diagnosis.contains('DEFICIENCY')) {
+      title = '🌱 NITROGEN DEFICIENCY';
+      color = Colors.amber;
+      icon = Icons.eco;
+    } else if (diagnosis.contains('HEALTHY')) {
+      title = '✅ PLANT HEALTHY';
+      color = Colors.green;
+      icon = Icons.check_circle;
+    } else if (diagnosis.contains('MILD')) {
+      title = '🔍 MILD STRESS';
+      color = Colors.yellow;
+      icon = Icons.info;
+    } else {
+      title = '❓ UNKNOWN ISSUE';
+      color = Colors.grey;
+      icon = Icons.help;
+    }
+
+    // Show dialog if we have a context
+    if (navigatorKey.currentContext != null) {
+      showDialog(
+        context: navigatorKey.currentContext!,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                Icon(icon, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(action),
+                if (result['recommendation'] != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    result['recommendation'],
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+                if (result['terminateRoutine'] == true) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red),
+                    ),
+                    child: const Text(
+                      '⚠️ Irrigation routine has been terminated',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.red,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+              if (diagnosis.contains('LOCKOUT') ||
+                  diagnosis.contains('DEFICIENCY'))
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    navigatorKey.currentState?.push(
+                      MaterialPageRoute(
+                        builder: (_) => const SoilHistoryScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('View Details'),
+                ),
+            ],
+          );
+        },
+      );
     }
   }
 }
