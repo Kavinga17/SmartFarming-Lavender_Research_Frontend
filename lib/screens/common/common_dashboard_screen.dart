@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -479,7 +480,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (userDoc.exists && mounted) {
           Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
           setState(() {
-            _profileImageUrl = userData['profileImageUrl'];
+            _profileImageUrl = userData['profileImageBase64'] ?? userData['profileImageUrl'];
           });
         }
       }
@@ -1600,6 +1601,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildProfileImage(String data, double fallbackSize, Color fallbackColor) {
+    // Try Base64 first, fallback to network URL for backward compatibility
+    try {
+      final bytes = base64Decode(data);
+      return Image.memory(
+        bytes,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Icon(Icons.person, color: fallbackColor, size: fallbackSize);
+        },
+      );
+    } catch (_) {
+      // Not valid Base64 — try as network URL (legacy data)
+      return Image.network(
+        data,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) {
+          return Icon(Icons.person, color: fallbackColor, size: fallbackSize);
+        },
+      );
+    }
+  }
+
   Widget _buildHeader() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1655,17 +1679,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       child: ClipOval(
                         child: _profileImageUrl != null
-                            ? Image.network(
-                                _profileImageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(
-                                    Icons.person_outline,
-                                    color: primaryOrange,
-                                    size: 20,
-                                  );
-                                },
-                              )
+                            ? _buildProfileImage(_profileImageUrl!, 20, primaryOrange)
                             : const Icon(
                                 Icons.person_outline,
                                 color: primaryOrange,
@@ -2426,17 +2440,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       child: ClipOval(
                         child: _profileImageUrl != null
-                            ? Image.network(
-                                _profileImageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(
-                                    Icons.person,
-                                    color: primaryPurple,
-                                    size: 40,
-                                  );
-                                },
-                              )
+                            ? _buildProfileImage(_profileImageUrl!, 40, primaryPurple)
                             : const Icon(
                                 Icons.person,
                                 color: primaryPurple,

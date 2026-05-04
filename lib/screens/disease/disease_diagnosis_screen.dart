@@ -19,6 +19,7 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
   List<dynamic> _detections = [];
   Map<String, dynamic> _summary = {};
   String _annotatedImageBase64 = "";
+  String _originalImageBase64 = "";
   bool _predictionCompleted = false;
   bool _isLoading = false;
   bool _isSaving = false;
@@ -65,6 +66,9 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
       // Read the file and base64-encode it for the backend
       final bytes = await File(filePath).readAsBytes();
       final imageBase64 = base64Encode(bytes);
+
+      // Store original image Base64 for saving to Firestore
+      _originalImageBase64 = imageBase64;
 
       final response = await http.post(
         Uri.parse('http://192.168.0.100:5000/diseasPredict'), // Unified backend on port 5000
@@ -164,6 +168,7 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
         'detections': _detections,
         'summary': _summary,
         'photo_path': _photoPath,
+        'photo_image_base64': _originalImageBase64,
         'annotated_image_base64': _annotatedImageBase64,
         'date_time': currentDateTime,
         'timestamp': FieldValue.serverTimestamp(),
@@ -192,6 +197,7 @@ class _AddLavenderDiseasePageState extends State<AddLavenderDiseasePage> {
 
       setState(() {
         _photoPath = "";
+        _originalImageBase64 = "";
         _predictionCompleted = false;
         _detections = [];
         _summary = {};

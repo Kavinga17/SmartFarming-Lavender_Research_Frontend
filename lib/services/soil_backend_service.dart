@@ -11,7 +11,6 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 
 class SoilBackendService {
   // ── Flask API Server Configuration ──
@@ -22,7 +21,7 @@ class SoilBackendService {
 
   // ── Arduino ESP32 Soil Sensor Configuration ──
   // UPDATE this to the IP of the Arduino ESP32 running the soil moisture sensor
-  static String sensorIp = '192.168.0.200';
+  static String sensorIp = '192.168.0.198';
   static int sensorPort = 80;
   static String get _sensorUrl => 'http://$sensorIp:$sensorPort';
 
@@ -34,9 +33,6 @@ class SoilBackendService {
   static final _analysesCol = _firestore.collection('analyses');
   static final _routinesCol = _firestore.collection('irrigation_routines');
   static final _wateringCol = _firestore.collection('watering_history');
-
-  // ── Firebase Storage ──
-  static final _storage = FirebaseStorage.instance;
 
   // =====================================================================
   //  CONNECTION / HEALTH
@@ -99,7 +95,7 @@ class SoilBackendService {
   /// Flow:
   /// 1. Read image and encode as base64
   /// 2. POST to Flask /soil/analyze → get threeClass + yellowMeter predictions
-  /// 3. Upload image to Firebase Storage (record-keeping)
+  /// 3. Save image as Base64 string in Firestore
   /// 4. Read current moisture from ESP32
   /// 5. Run local decision engine with ML results + sensor data
   /// 6. Save complete analysis to Firestore
@@ -131,17 +127,8 @@ class SoilBackendService {
         return null;
       }
 
-      // 3 — Upload image to Firebase Storage for record-keeping
-      String? imageUrl;
-      final fileName =
-          '${DateTime.now().millisecondsSinceEpoch}_${image.name}';
-      try {
-        final ref = _storage.ref().child('soil_analyses/$fileName');
-        await ref.putData(bytes);
-        imageUrl = await ref.getDownloadURL();
-      } catch (e) {
-        print('⚠️ Firebase Storage upload failed (continuing): $e');
-      }
+      // 3 — Save image as Base64 string (stored with Firestore doc)
+      final imageBase64 = base64Encode(bytes);
 
       // 4 — Read moisture from ESP32
       double? moisture;
@@ -188,8 +175,8 @@ class SoilBackendService {
       final result = <String, dynamic>{
         'success': true,
         'timestamp': timestamp,
-        'image': fileName,
-        'imageUrl': imageUrl,
+        'image': '${DateTime.now().millisecondsSinceEpoch}_${image.name}',
+        'imageBase64': imageBase64,
         'moisture': moisture,
         'threeClass': threeClass,
         'yellowMeter': yellowMeter,

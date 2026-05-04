@@ -648,16 +648,6 @@ class _LoginScreenState extends State<LoginScreen> {
             size: 28,
           ),
         ),
-        const SizedBox(width: 20),
-        // Apple
-        _socialLoginButton(
-          onPressed: () {},
-          child: const Icon(
-            Icons.apple,
-            color: Colors.black,
-            size: 28,
-          ),
-        ),
       ],
     );
   }

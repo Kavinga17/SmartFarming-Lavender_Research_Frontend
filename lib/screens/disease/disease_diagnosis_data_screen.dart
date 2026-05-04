@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -409,6 +410,7 @@ class _ViewLavenderHistoryPageState extends State<ViewLavenderHistoryPage> {
       List detections = data['detections'] ?? [];
       Timestamp dateTime = data['date_time'] ?? Timestamp.now();
       String photoPath = data['photo_path'] ?? '';
+      String photoBase64 = data['photo_image_base64'] ?? '';
 
       // Create detection summary text
       String detectionSummary = '';
@@ -544,9 +546,9 @@ class _ViewLavenderHistoryPageState extends State<ViewLavenderHistoryPage> {
                 borderRadius: BorderRadius.circular(6),
                 splashColor: primaryPurple.withOpacity(0.15),
                 highlightColor: primaryPurple.withOpacity(0.08),
-                onTap: () => _showFullImage(photoPath, detections),
-                child: photoPath.isNotEmpty
-                    ? Ink(
+                onTap: () => _showFullImage(photoBase64, detections),
+                child: photoBase64.isNotEmpty
+                    ? Container(
                         height: 32,
                         width: 32,
                         decoration: BoxDecoration(
@@ -559,9 +561,15 @@ class _ViewLavenderHistoryPageState extends State<ViewLavenderHistoryPage> {
                               offset: Offset(0, 1),
                             ),
                           ],
-                          image: DecorationImage(
-                            image: NetworkImage(photoPath),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(5),
+                          child: Image.memory(
+                            base64Decode(photoBase64),
                             fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(Icons.broken_image, size: 14, color: primaryPurple.withOpacity(0.5));
+                            },
                           ),
                         ),
                       )
@@ -592,7 +600,7 @@ class _ViewLavenderHistoryPageState extends State<ViewLavenderHistoryPage> {
     return DateFormat('yyyy-MM-dd HH:mm:ss').format(dateTime);
   }
 
-  void _showFullImage(String imageUrl, List detections) {
+  void _showFullImage(String imageBase64, List detections) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -631,47 +639,57 @@ class _ViewLavenderHistoryPageState extends State<ViewLavenderHistoryPage> {
                 // Image
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Image.network(
-                    imageUrl,
-                    height: 180,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Container(
-                        height: 180,
-                        color: primaryPurple.withOpacity(0.06),
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(primaryPurple),
+                  child: imageBase64.isNotEmpty
+                      ? Image.memory(
+                          base64Decode(imageBase64),
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              height: 180,
+                              color: primaryPurple.withOpacity(0.06),
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.broken_image,
+                                      size: 30,
+                                      color: primaryPurple.withOpacity(0.5),
+                                    ),
+                                    SizedBox(height: 4),
+                                    Text(
+                                      'Image not available',
+                                      style: TextStyle(color: textDark, fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : Container(
+                          height: 180,
+                          color: primaryPurple.withOpacity(0.06),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.image_not_supported,
+                                  size: 30,
+                                  color: primaryPurple.withOpacity(0.5),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  'No image available',
+                                  style: TextStyle(color: textDark, fontSize: 11),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 180,
-                        color: primaryPurple.withOpacity(0.06),
-                        child: Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.broken_image,
-                                size: 30,
-                                color: primaryPurple.withOpacity(0.5),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                'Image not available',
-                                style: TextStyle(color: textDark, fontSize: 11),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
                 ),
                 SizedBox(height: 12),
 

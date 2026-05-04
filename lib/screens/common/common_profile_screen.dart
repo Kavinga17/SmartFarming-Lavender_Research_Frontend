@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
+import 'dart:convert';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -15,7 +15,6 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
   final ImagePicker _picker = ImagePicker();
   
   final TextEditingController _nameController = TextEditingController();
@@ -57,7 +56,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           setState(() {
             _nameController.text = userData['name'] ?? '';
             _emailController.text = user.email ?? '';
-            _profileImageUrl = userData['profileImageUrl'];
+            _profileImageUrl = userData['profileImageBase64'] ?? userData['profileImageUrl'];
             _isLoading = false;
           });
         } else {
@@ -114,21 +113,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
       User? user = _auth.currentUser;
       if (user == null) return;
       
-      // Upload to Firebase Storage
-      String fileName = 'profile_${user.uid}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      Reference ref = _storage.ref().child('profile_images/$fileName');
-      UploadTask uploadTask = ref.putFile(_selectedImage!);
-      TaskSnapshot snapshot = await uploadTask;
-      String downloadUrl = await snapshot.ref.getDownloadURL();
+      // Convert image to Base64 string
+      final bytes = await _selectedImage!.readAsBytes();
+      final base64Image = base64Encode(bytes);
       
-      // Update Firestore
+      // Update Firestore with Base64 image
       await _firestore.collection('users').doc(user.uid).update({
-        'profileImageUrl': downloadUrl,
+        'profileImageBase64': base64Image,
         'updatedAt': FieldValue.serverTimestamp(),
       });
       
       setState(() {
-        _profileImageUrl = downloadUrl;
+        _profileImageUrl = base64Image;
         _selectedImage = null;
       });
       
@@ -307,7 +303,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: _selectedImage != null
                     ? Image.file(_selectedImage!, fit: BoxFit.cover)
                     : _profileImageUrl != null
-                        ? Image.network(_profileImageUrl!, fit: BoxFit.cover)
+                        ? Image.memory(
+                            base64Decode(_profileImageUrl!),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Image.network(_profileImageUrl!, fit: BoxFit.cover,
+                                errorBuilder: (ctx, err, st) => Container(
+                                  color: const Color(0xFFE1BEE7),
+                                  child: Icon(Icons.person, size: 60, color: const Color(0xFF6A1B9A)),
+                                ),
+                              );
+                            },
+                          )
                         : Container(
                             color: const Color(0xFFE1BEE7),
                             child: Icon(
